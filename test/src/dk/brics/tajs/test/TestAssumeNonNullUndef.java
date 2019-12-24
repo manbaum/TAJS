@@ -1,13 +1,11 @@
 package dk.brics.tajs.test;
 
 import dk.brics.tajs.Main;
-import dk.brics.tajs.monitoring.CompositeMonitoring;
-import dk.brics.tajs.monitoring.IAnalysisMonitoring;
-import dk.brics.tajs.monitoring.Monitoring;
+import dk.brics.tajs.monitoring.AnalysisMonitor;
 import dk.brics.tajs.options.OptionValues;
+import dk.brics.tajs.options.Options;
 import dk.brics.tajs.solver.Message;
 import dk.brics.tajs.solver.Message.Status;
-import dk.brics.tajs.test.monitors.OrdinaryExitReachableCheckerMonitor;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -25,7 +23,7 @@ public class TestAssumeNonNullUndef {
     @Before
     public void before() {
         Main.reset();
-        Main.initLogging();
+        Options.get().enableTest();
     }
 
     @Test
@@ -204,17 +202,21 @@ public class TestAssumeNonNullUndef {
     }
 
     public void testWithSource(final int expectedWarnings, final String... source) {
-        OptionValues baseOptions = new OptionValues();
-        baseOptions.enableTest();
-        IAnalysisMonitoring monitoring = CompositeMonitoring.buildFromList(new Monitoring(), new OrdinaryExitReachableCheckerMonitor());
-
-        Misc.runSource(source, monitoring);
-        Set<Message> nullUndefWarnings = new HashSet<>();
-        for (Message message : monitoring.getMessages()) {
-            if (message.getStatus() == Status.MAYBE && message.getMessage().endsWith(" is null/undefined")) {
-                nullUndefWarnings.add(message);
+        try {
+            OptionValues baseOptions = new OptionValues();
+            baseOptions.enableTest();
+            AnalysisMonitor monitoring = new AnalysisMonitor();
+            Misc.runSource(source, monitoring);
+            Set<Message> nullUndefWarnings = new HashSet<>();
+            for (Message message : monitoring.getMessages()) {
+                if (message.getStatus() == Status.MAYBE && message.getMessage().endsWith(" is null/undefined")) {
+                    nullUndefWarnings.add(message);
+                }
             }
+            Assert.assertEquals(expectedWarnings, nullUndefWarnings.size());
+        } catch (Throwable e) {
+            e.printStackTrace(System.out);
+            throw e;
         }
-        Assert.assertEquals(expectedWarnings, nullUndefWarnings.size());
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,10 +16,12 @@
 
 package dk.brics.tajs.flowgraph;
 
+import java.io.Serializable;
+
 /**
  * Abstract base class for all nodes.
  */
-public abstract class AbstractNode implements Cloneable {
+public abstract class AbstractNode implements Cloneable, Serializable {
 
     /**
      * Register number used for absent values.
@@ -68,14 +70,14 @@ public abstract class AbstractNode implements Cloneable {
     private AbstractNode duplicate_of;
 
     /**
-     * If set, all ordinary registers can be considered dead after this node.
-     */
-    private boolean registers_done;
-
-    /**
      * Basic block used for implicit calls.
      */
     private BasicBlock implicitAfterCall;
+
+    /**
+     * If set, this node is the first node in a loop body.
+     */
+    private boolean isLoopEntryNode;
 
     /**
      * Constructs a new node.
@@ -97,6 +99,12 @@ public abstract class AbstractNode implements Cloneable {
      */
     public AbstractNode getDuplicateOf() {
         return duplicate_of;
+    }
+    /**
+     * Returns the node that this node is a duplicate of, or this node if this is not a duplicate.
+     */
+    public AbstractNode getThisOrDuplicateOf() {
+        return duplicate_of != null ? duplicate_of : this;
     }
 
     /**
@@ -147,12 +155,12 @@ public abstract class AbstractNode implements Cloneable {
      * Returns a string description of this node.
      */
     @Override
-    abstract public String toString();
+    public abstract String toString();
 
     /**
      * Returns true if this node may throw exceptions.
      */
-    abstract public boolean canThrowExceptions();
+    public abstract boolean canThrowExceptions();
 
     /**
      * Returns true if this node is an artifact and should not appear in analysis messages.
@@ -171,7 +179,7 @@ public abstract class AbstractNode implements Cloneable {
     /**
      * Visits this node with the given visitor.
      */
-    abstract public void visitBy(AbstractNodeVisitor v);
+    public abstract void visitBy(AbstractNodeVisitor v);
 
     /**
      * Perform a consistency check of this node.
@@ -184,21 +192,17 @@ public abstract class AbstractNode implements Cloneable {
     }
 
     /**
-     * Returns the registers done flag.
-     *
-     * @return true if all ordinary registers can be considered dead at the end of this block
+     * Returns true if this node is the first node in a loop body.
      */
-    public boolean isRegistersDone() {
-        return registers_done;
+    public boolean isLoopEntryNode() {
+        return isLoopEntryNode;
     }
 
     /**
-     * Sets the registers done flag.
-     *
-     * @param registers_done true if all ordinary registers can be considered dead at the end of this block
+     * Sets the flag to indicate if this node is the first node in a loop body.
      */
-    public void setRegistersDone(boolean registers_done) {
-        this.registers_done = registers_done;
+    public void setIsLoopEntryNode(boolean isLoopEntryNode) {
+        this.isLoopEntryNode = isLoopEntryNode;
     }
 
     /**

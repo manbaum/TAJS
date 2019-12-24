@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,10 +18,10 @@ package dk.brics.tajs.analysis.dom.event;
 
 import dk.brics.tajs.analysis.Conversion;
 import dk.brics.tajs.analysis.FunctionCalls;
-import dk.brics.tajs.analysis.NativeFunctions;
 import dk.brics.tajs.analysis.PropVarOperations;
 import dk.brics.tajs.analysis.Solver;
 import dk.brics.tajs.analysis.dom.DOMConversion;
+import dk.brics.tajs.analysis.dom.DOMFunctions;
 import dk.brics.tajs.analysis.dom.DOMObjects;
 import dk.brics.tajs.analysis.dom.DOMRegistry;
 import dk.brics.tajs.analysis.dom.DOMWindow;
@@ -30,8 +30,11 @@ import dk.brics.tajs.lattice.State;
 import dk.brics.tajs.lattice.Value;
 import dk.brics.tajs.util.AnalysisException;
 
+import java.util.Set;
+
 import static dk.brics.tajs.analysis.dom.DOMFunctions.createDOMFunction;
 import static dk.brics.tajs.analysis.dom.DOMFunctions.createDOMProperty;
+import static dk.brics.tajs.util.Collections.newSet;
 
 /**
  * The MutationEvent interface provides specific contextual information
@@ -46,8 +49,8 @@ public class MutationEvent {
     public static void build(Solver.SolverInterface c) {
         State s = c.getState();
         PropVarOperations pv = c.getAnalysis().getPropVarOperations();
-        PROTOTYPE = new ObjectLabel(DOMObjects.MUTATION_EVENT_PROTOTYPE, ObjectLabel.Kind.OBJECT);
-        INSTANCES = new ObjectLabel(DOMObjects.MUTATION_EVENT_INSTANCES, ObjectLabel.Kind.OBJECT);
+        PROTOTYPE = ObjectLabel.make(DOMObjects.MUTATION_EVENT_PROTOTYPE, ObjectLabel.Kind.OBJECT);
+        INSTANCES = ObjectLabel.make(DOMObjects.MUTATION_EVENT_INSTANCES, ObjectLabel.Kind.OBJECT);
 
         // Prototype object.
         s.newObject(PROTOTYPE);
@@ -61,11 +64,23 @@ public class MutationEvent {
         /*
          * Properties.
          */
+        Set<String> mutationEventTypes = newSet();
+        mutationEventTypes.add("DOMAttrModified");
+        mutationEventTypes.add("DOMAttributeNameChanged");
+        mutationEventTypes.add("DOMCharacterDataModified");
+        mutationEventTypes.add("DOMElementNameChanged");
+        mutationEventTypes.add("DOMNodeInserted");
+        mutationEventTypes.add("DOMNodeInsertedIntoDocument");
+        mutationEventTypes.add("DOMNodeRemoved");
+        mutationEventTypes.add("DOMNodeRemovedFromDocument");
+        mutationEventTypes.add("DOMSubtreeModified");
+
         createDOMProperty(INSTANCES, "relatedNode", Value.makeAnyStr().setReadOnly(), c);
         createDOMProperty(INSTANCES, "prevValue", Value.makeAnyStr().setReadOnly(), c);
         createDOMProperty(INSTANCES, "newValue", Value.makeAnyStr().setReadOnly(), c);
         createDOMProperty(INSTANCES, "attrName", Value.makeAnyStr().setReadOnly(), c);
         createDOMProperty(INSTANCES, "attrChange", Value.makeAnyNumUInt().setReadOnly(), c);
+        createDOMProperty(INSTANCES, "type", Value.makeStrings(mutationEventTypes).setReadOnly(), c);
 
         /*
          * Constants (attrChangeType).
@@ -91,23 +106,23 @@ public class MutationEvent {
         State s = c.getState();
         switch (nativeObject) {
             case MUTATION_EVENT_INIT_MUTATION_EVENT: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 8, 8);
+                DOMFunctions.expectParameters(nativeObject, call, c, 8, 8);
                 /* Value typeArg =*/
-                Conversion.toString(NativeFunctions.readParameter(call, s, 0), c);
+                Conversion.toString(FunctionCalls.readParameter(call, s, 0), c);
                 /* Value canBubble =*/
-                Conversion.toBoolean(NativeFunctions.readParameter(call, s, 1));
+                Conversion.toBoolean(FunctionCalls.readParameter(call, s, 1));
                 /* Value cancelable =*/
-                Conversion.toBoolean(NativeFunctions.readParameter(call, s, 2));
+                Conversion.toBoolean(FunctionCalls.readParameter(call, s, 2));
                 /* Value relatedNode =*/
-                DOMConversion.toNode(NativeFunctions.readParameter(call, s, 3), c);
+                DOMConversion.toNode(FunctionCalls.readParameter(call, s, 3), c);
                 /* Value prevValue =*/
-                Conversion.toString(NativeFunctions.readParameter(call, s, 4), c);
+                Conversion.toString(FunctionCalls.readParameter(call, s, 4), c);
                 /* Value newValue =*/
-                Conversion.toString(NativeFunctions.readParameter(call, s, 5), c);
+                Conversion.toString(FunctionCalls.readParameter(call, s, 5), c);
                 /* Value attrName =*/
-                Conversion.toString(NativeFunctions.readParameter(call, s, 6), c);
+                Conversion.toString(FunctionCalls.readParameter(call, s, 6), c);
                 /* Value attrChange =*/
-                Conversion.toNumber(NativeFunctions.readParameter(call, s, 7), c);
+                Conversion.toNumber(FunctionCalls.readParameter(call, s, 7), c);
                 return Value.makeUndef();
             }
             default:

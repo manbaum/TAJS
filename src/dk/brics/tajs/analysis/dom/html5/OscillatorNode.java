@@ -1,3 +1,19 @@
+/*
+ * Copyright 2009-2019 Aarhus University
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package dk.brics.tajs.analysis.dom.html5;
 
 import dk.brics.tajs.analysis.Exceptions;
@@ -27,9 +43,9 @@ public class OscillatorNode {
         State s = c.getState();
         PropVarOperations pv = c.getAnalysis().getPropVarOperations();
 
-        CONSTRUCTOR = new ObjectLabel(DOMObjects.OSCILLATORNODE_CONSTRUCTOR, ObjectLabel.Kind.FUNCTION);
-        PROTOTYPE = new ObjectLabel(DOMObjects.OSCILLATORNODE_PROTOTYPE, ObjectLabel.Kind.OBJECT);
-        INSTANCES = new ObjectLabel(DOMObjects.OSCILLATORNODE_INSTANCES, ObjectLabel.Kind.OBJECT);
+        CONSTRUCTOR = ObjectLabel.make(DOMObjects.OSCILLATORNODE_CONSTRUCTOR, ObjectLabel.Kind.FUNCTION);
+        PROTOTYPE = ObjectLabel.make(DOMObjects.OSCILLATORNODE_PROTOTYPE, ObjectLabel.Kind.OBJECT);
+        INSTANCES = ObjectLabel.make(DOMObjects.OSCILLATORNODE_INSTANCES, ObjectLabel.Kind.OBJECT);
 
         // Constructor Object
         s.newObject(CONSTRUCTOR);
@@ -51,7 +67,7 @@ public class OscillatorNode {
          */
         createDOMProperty(INSTANCES, "frequency", Value.makeObject(AudioParam.INSTANCES), c);
         createDOMProperty(INSTANCES, "detune", Value.makeObject(AudioParam.INSTANCES), c);
-        createDOMProperty(INSTANCES, "type", Value.makeAnyStr(/* sine, square, sawtooth, triangle, custom */), c);
+        createDOMProperty(INSTANCES, "type", Value.makeStr("sine").joinStr("square").joinStr("sawtooth").joinStr("triangle").joinStr("custom"), c);
 
         s.multiplyObject(INSTANCES);
         INSTANCES = INSTANCES.makeSingleton().makeSummary();
@@ -69,7 +85,7 @@ public class OscillatorNode {
         switch (nativeObject) {
             case OSCILLATORNODE_CONSTRUCTOR:
                 Exceptions.throwTypeError(c);
-                s.setToNone();
+                s.setToBottom();
             case OSCILLATORNODE_START:
             case OSCILLATORNODE_STOP:
                 return Value.makeUndef();

@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 package dk.brics.tajs.analysis;
 
+import dk.brics.tajs.analysis.js.Filtering;
+import dk.brics.tajs.blendedanalysis.solver.BlendedAnalysisManager;
 import dk.brics.tajs.flowgraph.FlowGraph;
 import dk.brics.tajs.lattice.AnalysisLatticeElement;
 import dk.brics.tajs.lattice.CallEdge;
@@ -25,13 +27,13 @@ import dk.brics.tajs.monitoring.IAnalysisMonitoring;
 import dk.brics.tajs.options.Options;
 import dk.brics.tajs.solver.IAnalysis;
 import dk.brics.tajs.solver.IEdgeTransfer;
-import dk.brics.tajs.solver.IWorkListStrategy;
 import dk.brics.tajs.solver.SolverSynchronizer;
+import dk.brics.tajs.typetesting.ITypeTester;
 
 /**
  * Encapsulation of the analysis using {@link State}, {@link Context},
  * {@link Solver}, {@link InitialStateBuilder}, {@link Transfer},
- * {@link WorkListStrategy}, {@link IContextSensitivityStrategy}, and {@link IAnalysisMonitoring}.
+ * {@link IContextSensitivityStrategy}, and {@link IAnalysisMonitoring}.
  */
 public final class Analysis implements IAnalysis<State, Context, CallEdge, IAnalysisMonitoring, Analysis> {
 
@@ -41,37 +43,68 @@ public final class Analysis implements IAnalysis<State, Context, CallEdge, IAnal
 
     private final Transfer transfer;
 
-    private final WorkListStrategy worklist_strategy;
-
     private final IAnalysisMonitoring monitoring;
 
     private final EvalCache eval_cache;
 
-    private final IContextSensitivityStrategy context_sensitivity_strategy;
+    private final Unsoundness unsoundness;
+
+    private CustomContextSensitivityStrategy context_sensitivity_strategy;
 
     private final PropVarOperations state_util;
+
+    private BlendedAnalysisManager blended_analysis_manager;
+
+    private ITypeTester<Context> ttr;
+
+    private Filtering filtering;
 
     /**
      * Constructs a new analysis object.
      */
-    public Analysis(IAnalysisMonitoring monitoring, SolverSynchronizer sync) {
+    public Analysis(IAnalysisMonitoring monitoring, SolverSynchronizer sync, Transfer transfer, ITypeTester<Context> ttr) {
+        unsoundness = new Unsoundness(Options.get().getUnsoundness(), monitoring::addMessageInfo);
         this.monitoring = monitoring;
         initial_state_builder = new InitialStateBuilder();
-        transfer = new Transfer();
-        worklist_strategy = new WorkListStrategy();
+        this.transfer = transfer;
+        this.ttr = ttr;
         eval_cache = new EvalCache();
-        if (Options.get().isDeterminacyEnabled()) {
-            context_sensitivity_strategy = new StaticDeterminacyContextSensitivityStrategy(StaticDeterminacyContextSensitivityStrategy.SyntacticHints.get());
-        } else {
-            context_sensitivity_strategy = new BasicContextSensitivityStrategy();
-        }
         solver = new Solver(this, sync);
-        state_util = new PropVarOperations();
+        state_util = new PropVarOperations(unsoundness);
+        filtering = new Filtering();
+        if (Options.get().isBlendedAnalysisEnabled() || Options.get().isIgnoreUnreachedEnabled())
+            blended_analysis_manager = new BlendedAnalysisManager();
+    }
+
+    /**
+     * Constructs a new analysis object with the default transfer.
+     */
+    public Analysis(IAnalysisMonitoring monitoring, SolverSynchronizer sync) {
+        this(monitoring, sync, new Transfer(), null);
     }
 
     @Override
     public AnalysisLatticeElement makeAnalysisLattice(FlowGraph fg) {
         return new AnalysisLatticeElement(fg);
+    }
+
+    /**
+     * Initializes the context-sensitivity strategy.
+     * If a type-tester is available, then that is used;
+     * otherwise, if determinacy is enabled then {@link StaticDeterminacyContextSensitivityStrategy} is used;
+     * otherwise {@link BasicContextSensitivityStrategy} is used.
+     */
+    @Override
+    public void initContextSensitivity(FlowGraph fg) {
+        IContextSensitivityStrategy s;
+        if (ttr != null) {
+            s = ttr.getCustomContextSensitivityStrategy(fg);
+        } else if (Options.get().isDeterminacyEnabled()) {
+            s = new StaticDeterminacyContextSensitivityStrategy(fg.getSyntacticInformation());
+        } else {
+            s = new BasicContextSensitivityStrategy();
+        }
+        context_sensitivity_strategy = new CustomContextSensitivityStrategy(s);
     }
 
     @Override
@@ -85,13 +118,8 @@ public final class Analysis implements IAnalysis<State, Context, CallEdge, IAnal
     }
 
     @Override
-    public IEdgeTransfer<State, Context> getEdgeTransferFunctions() {
+    public IEdgeTransfer<Context> getEdgeTransferFunctions() {
         return transfer;
-    }
-
-    @Override
-    public IWorkListStrategy<Context> getWorklistStrategy() {
-        return worklist_strategy;
     }
 
     @Override
@@ -100,10 +128,18 @@ public final class Analysis implements IAnalysis<State, Context, CallEdge, IAnal
     }
 
     @Override
+    public BlendedAnalysisManager getBlendedAnalysis() {
+        return blended_analysis_manager;
+    }
+
+    @Override
     public void setSolverInterface(Solver.SolverInterface c) {
         transfer.setSolverInterface(c);
         state_util.setSolverInterface(c);
-        worklist_strategy.setCallGraph(c.getAnalysisLatticeElement().getCallGraph());
+        monitoring.setSolverInterface(c);
+        filtering.setSolverInterface(c);
+        if (Options.get().isBlendedAnalysisEnabled() || Options.get().isIgnoreUnreachedEnabled())
+            blended_analysis_manager.setSolverInterface(c);
     }
 
     /**
@@ -121,14 +157,14 @@ public final class Analysis implements IAnalysis<State, Context, CallEdge, IAnal
     }
 
     @Override
-    public CallEdge makeCallEdge(State edge_state) {
-        return new CallEdge(edge_state);
+    public CallEdge cloneCallEdge(CallEdge edge) {
+        return new CallEdge(edge.getState().clone(), edge.getFunctionTypeSignatures());
     }
 
     /**
      * Returns the context sensitivity strategy.
      */
-    public IContextSensitivityStrategy getContextSensitivityStrategy() {
+    public CustomContextSensitivityStrategy getContextSensitivityStrategy() {
         return context_sensitivity_strategy;
     }
 
@@ -137,5 +173,18 @@ public final class Analysis implements IAnalysis<State, Context, CallEdge, IAnal
      */
     public PropVarOperations getPropVarOperations() {
         return state_util;
+    }
+
+    public Unsoundness getUnsoundness() {
+        return unsoundness;
+    }
+
+    @Override
+    public ITypeTester<Context> getTypeTester() {
+        return ttr;
+    }
+
+    public Filtering getFiltering() {
+        return filtering;
     }
 }

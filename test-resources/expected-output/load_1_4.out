@@ -1,0 +1,990 @@
+TAJS-dynamic-code(benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3272:2):1:1: HTML StartTag a has missing whitespace after quoted attribute value
+TAJS-dynamic-code(benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3272:2):1:1: HTML StartTag a contains a '/' character before the closing '>', which is ignored because tags of this name cannot be empty-element tags
+TAJS-dynamic-code(benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3272:2):1:1: HTML StartTag missing required end tag
+TAJS-dynamic-code(benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3272:2):1:1: HTML StartTag a has missing whitespace after quoted attribute value
+TAJS-dynamic-code(benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3272:2):1:1: HTML StartTag a contains a '/' character before the closing '>', which is ignored because tags of this name cannot be empty-element tags
+TAJS-dynamic-code(benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3272:2):1:1: HTML StartTag missing required end tag
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:21:40: [definite] Variable context is null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:79:3: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:91:3: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:159:10: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:302:15: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:305:2: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:313:2: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:325:3: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:332:5: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:337:10: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:402:3: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:415:3: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:522:3: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:522:8: [definite] Variable args is null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:541:6: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:560:13: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:560:13: [definite] Variable results is null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:562:3: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:562:8: [definite] Variable array is null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:709:1: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:719:1: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:754:1: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:824:7: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:882:2: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:889:7: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:968:10: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:975:8: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:980:3: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:980:9: [definite] Variable id is null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:986:3: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:989:10: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:991:10: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:998:3: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:998:8: [definite] Variable data is null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1003:10: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1726:14: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1730:12: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1738:4: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1744:4: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1761:4: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1761:9: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1770:29: [definite] Variable data is null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1778:3: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1778:8: [definite] Variable handle is null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1784:11: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1794:8: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1794:21: [definite] Variable nativeFn is null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1802:15: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1802:15: [definite] Variable nativeHandler is null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1986:2: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1986:7: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2016:3: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2016:9: [definite] Variable e is null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2031:3: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2031:9: [definite] Variable e is null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2247:1: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2316:3: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2320:33: [definite] Variable data is null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2321:11: [definite] Property is null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2446:6: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3194:1: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3280:2: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3340:1: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3347:8: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3380:7: [definite] The conditional expression is always false
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3470:16: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4507:1: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4507:6: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4703:8: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5673:1: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5673:6: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5690:1: [definite] The conditional expression is always true
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:25:12: [definite] Reading absent property jQuery
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:28:7: [definite] Reading absent property $
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:84:8: [definite] Reading absent property nodeType
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:85:4: [definite] Dead assignment, property context is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:86:4: [definite] Dead assignment, property length is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:174:2: [definite] Dead assignment, property selector is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:177:2: [definite] Dead assignment, property jquery is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:180:2: [definite] Dead assignment, property length is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:183:2: [definite] Dead assignment, property size is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:187:2: [definite] Dead assignment, property toArray is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:193:2: [definite] Dead assignment, property get is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:205:2: [definite] Dead assignment, property pushStack is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:227:2: [definite] Dead assignment, property setArray is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:239:2: [definite] Dead assignment, property each is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:261:2: [definite] Dead assignment, property eq is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:267:2: [definite] Dead assignment, property first is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:271:2: [definite] Dead assignment, property last is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:275:2: [definite] Dead assignment, property slice is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:280:2: [definite] Dead assignment, property map is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:286:2: [definite] Dead assignment, property end is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:292:2: [definite] Dead assignment, property push is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:293:2: [definite] Dead assignment, property sort is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:294:2: [definite] Dead assignment, property splice is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:701:2: [definite] Dead assignment, property version is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:706:2: [definite] Dead assignment, property safari is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:830:3: [definite] Dead assignment, property leadingWhitespace is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:834:3: [definite] Dead assignment, property tbody is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:842:3: [definite] Dead assignment, property style is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:846:3: [definite] Dead assignment, property hrefNormalized is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:851:3: [definite] Dead assignment, property opacity is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:860:3: [definite] Dead assignment, property checkOn is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:864:3: [definite] Dead assignment, property optSelected is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:867:3: [definite] Dead assignment, property scriptEval is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:868:3: [definite] Dead assignment, property noCloneEvent is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:869:3: [definite] Dead assignment, property boxModel is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:889:7: [definite] Reading absent property attachEvent of host object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:936:2: [definite] Dead assignment, property for is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:937:2: [definite] Dead assignment, property class is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:938:2: [definite] Dead assignment, property readonly is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:939:2: [definite] Dead assignment, property maxlength is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:940:2: [definite] Dead assignment, property cellspacing is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:941:2: [definite] Dead assignment, property rowspan is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:942:2: [definite] Dead assignment, property colspan is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:943:2: [definite] Dead assignment, property tabindex is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:944:2: [definite] Dead assignment, property usemap is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:945:2: [definite] Dead assignment, property frameborder is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1406:3: [definite] Dead assignment, property val is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1407:3: [definite] Dead assignment, property css is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1408:3: [definite] Dead assignment, property html is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1409:3: [definite] Dead assignment, property text is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1410:3: [definite] Dead assignment, property data is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1411:3: [definite] Dead assignment, property width is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1412:3: [definite] Dead assignment, property height is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1413:3: [definite] Dead assignment, property offset is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1525:2: [definite] Dead assignment, property add is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1632:2: [definite] Dead assignment, property global is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1635:2: [definite] Dead assignment, property remove is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1734:20: [definite] The function is invoked both as constructor and function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1806:3: [definite] Dead assignment, property triggered is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1816:2: [definite] Dead assignment, property handle is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1864:2: [definite] Dead assignment, property props is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1866:2: [definite] Dead assignment, property fix is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1923:2: [definite] Dead assignment, property guid is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1926:2: [definite] Dead assignment, property proxy is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1929:3: [definite] Dead assignment, property ready is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1931:4: [definite] Dead assignment, property setup is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1932:4: [definite] Dead assignment, property teardown is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1935:3: [definite] Dead assignment, property live is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1936:4: [definite] Dead assignment, property add is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1944:4: [definite] Dead assignment, property remove is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1959:4: [definite] Dead assignment, property special is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1961:3: [definite] Dead assignment, property beforeunload is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1962:4: [definite] Dead assignment, property setup is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1970:4: [definite] Dead assignment, property teardown is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1986:14: [definite] Reading absent property type
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2015:11: [definite] Reading absent property originalEvent
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2030:11: [definite] Reading absent property originalEvent
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2091:2: [definite] Dead assignment, property mouseenter is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2091:2: [definite] Dead assignment, property mouseleave is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2092:3: [definite] Dead assignment, property setup is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2095:3: [definite] Dead assignment, property teardown is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2104:1: [definite] Dead assignment, property submit is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2105:2: [definite] Dead assignment, property setup is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2128:2: [definite] Dead assignment, property remove is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2188:3: [definite] Dead assignment, property focusout is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2190:3: [definite] Dead assignment, property click is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2200:3: [definite] Dead assignment, property keydown is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2213:3: [definite] Dead assignment, property beforeactivate is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2221:2: [definite] Dead assignment, property setup is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2228:2: [definite] Dead assignment, property remove is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2249:3: [definite] Dead assignment, property focusin is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2249:3: [definite] Dead assignment, property focusout is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2250:4: [definite] Dead assignment, property setup is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2253:4: [definite] Dead assignment, property teardown is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2267:2: [definite] Dead assignment, property bind is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2267:2: [definite] Dead assignment, property one is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2317:16: [definite] The function is invoked both as constructor and function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2433:2: [definite] Dead assignment, property blur is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2433:2: [definite] Dead assignment, property change is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2433:2: [definite] Dead assignment, property click is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2433:2: [definite] Dead assignment, property dblclick is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2433:2: [definite] Dead assignment, property error is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2433:2: [definite] Dead assignment, property focus is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2433:2: [definite] Dead assignment, property focusin is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2433:2: [definite] Dead assignment, property focusout is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2433:2: [definite] Dead assignment, property keydown is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2433:2: [definite] Dead assignment, property keypress is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2433:2: [definite] Dead assignment, property keyup is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2433:2: [definite] Dead assignment, property mousedown is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2433:2: [definite] Dead assignment, property mouseenter is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2433:2: [definite] Dead assignment, property mouseleave is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2433:2: [definite] Dead assignment, property mousemove is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2433:2: [definite] Dead assignment, property mouseout is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2433:2: [definite] Dead assignment, property mouseover is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2433:2: [definite] Dead assignment, property mouseup is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2433:2: [definite] Dead assignment, property resize is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2433:2: [definite] Dead assignment, property scroll is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2433:2: [definite] Dead assignment, property select is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2433:2: [definite] Dead assignment, property submit is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2433:2: [definite] Dead assignment, property unload is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2438:3: [definite] Dead assignment, property blur is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2438:3: [definite] Dead assignment, property change is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2438:3: [definite] Dead assignment, property click is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2438:3: [definite] Dead assignment, property dblclick is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2438:3: [definite] Dead assignment, property error is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2438:3: [definite] Dead assignment, property focus is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2438:3: [definite] Dead assignment, property focusin is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2438:3: [definite] Dead assignment, property focusout is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2438:3: [definite] Dead assignment, property keydown is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2438:3: [definite] Dead assignment, property keypress is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2438:3: [definite] Dead assignment, property keyup is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2438:3: [definite] Dead assignment, property load is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2438:3: [definite] Dead assignment, property mousedown is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2438:3: [definite] Dead assignment, property mouseenter is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2438:3: [definite] Dead assignment, property mouseleave is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2438:3: [definite] Dead assignment, property mousemove is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2438:3: [definite] Dead assignment, property mouseout is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2438:3: [definite] Dead assignment, property mouseover is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2438:3: [definite] Dead assignment, property mouseup is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2438:3: [definite] Dead assignment, property resize is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2438:3: [definite] Dead assignment, property scroll is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2438:3: [definite] Dead assignment, property select is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2438:3: [definite] Dead assignment, property submit is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2438:3: [definite] Dead assignment, property unload is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2446:6: [definite] Reading absent property attachEvent
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2750:2: [definite] Dead assignment, property attrMap is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2751:3: [definite] Dead assignment, property class is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2752:3: [definite] Dead assignment, property for is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2755:3: [definite] Dead assignment, property href is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2759:2: [definite] Dead assignment, property relative is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2760:3: [definite] Dead assignment, property + is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2783:3: [definite] Dead assignment, property > is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2811:3: [definite] Dead assignment, property  is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2821:3: [definite] Dead assignment, property ~ is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2833:3: [definite] Dead assignment, property ID is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2839:3: [definite] Dead assignment, property NAME is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2852:3: [definite] Dead assignment, property TAG is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2856:2: [definite] Dead assignment, property preFilter is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2857:3: [definite] Dead assignment, property CLASS is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2878:3: [definite] Dead assignment, property ID is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2881:3: [definite] Dead assignment, property TAG is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2884:3: [definite] Dead assignment, property CHILD is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2901:3: [definite] Dead assignment, property ATTR is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2914:3: [definite] Dead assignment, property PSEUDO is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2932:3: [definite] Dead assignment, property POS is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2938:3: [definite] Dead assignment, property enabled is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2941:3: [definite] Dead assignment, property disabled is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2944:3: [definite] Dead assignment, property checked is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2947:3: [definite] Dead assignment, property selected is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2953:3: [definite] Dead assignment, property parent is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2956:3: [definite] Dead assignment, property empty is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2959:3: [definite] Dead assignment, property has is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2962:3: [definite] Dead assignment, property header is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2965:3: [definite] Dead assignment, property text is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2968:3: [definite] Dead assignment, property radio is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2971:3: [definite] Dead assignment, property checkbox is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2974:3: [definite] Dead assignment, property file is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2977:3: [definite] Dead assignment, property password is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2980:3: [definite] Dead assignment, property submit is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2983:3: [definite] Dead assignment, property image is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2986:3: [definite] Dead assignment, property reset is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2989:3: [definite] Dead assignment, property button is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2992:3: [definite] Dead assignment, property input is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2996:2: [definite] Dead assignment, property setFilters is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2997:3: [definite] Dead assignment, property first is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3000:3: [definite] Dead assignment, property last is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3003:3: [definite] Dead assignment, property even is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3006:3: [definite] Dead assignment, property odd is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3009:3: [definite] Dead assignment, property lt is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3012:3: [definite] Dead assignment, property gt is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3015:3: [definite] Dead assignment, property nth is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3018:3: [definite] Dead assignment, property eq is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3022:2: [definite] Dead assignment, property filter is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3023:3: [definite] Dead assignment, property PSEUDO is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3044:3: [definite] Dead assignment, property CHILD is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3093:3: [definite] Dead assignment, property ID is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3096:3: [definite] Dead assignment, property TAG is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3099:3: [definite] Dead assignment, property CLASS is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3103:3: [definite] Dead assignment, property ATTR is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3134:3: [definite] Dead assignment, property POS is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3148:2: [definite] Dead assignment, property ATTR is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3148:2: [definite] Dead assignment, property CHILD is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3148:2: [definite] Dead assignment, property CLASS is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3148:2: [definite] Dead assignment, property ID is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3148:2: [definite] Dead assignment, property NAME is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3148:2: [definite] Dead assignment, property POS is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3148:2: [definite] Dead assignment, property PSEUDO is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3148:2: [definite] Dead assignment, property TAG is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3308:3: [definite] Dead assignment, property TAG is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3332:3: [definite] Dead assignment, property href is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3392:2: [definite] Dead assignment, property CLASS is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3506:1: [definite] Dead assignment, property : is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3722:2: [definite] Dead assignment, property children is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3722:2: [definite] Dead assignment, property contents is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3722:2: [definite] Dead assignment, property next is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3722:2: [definite] Dead assignment, property nextAll is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3722:2: [definite] Dead assignment, property nextUntil is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3722:2: [definite] Dead assignment, property parent is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3722:2: [definite] Dead assignment, property parents is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3722:2: [definite] Dead assignment, property parentsUntil is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3722:2: [definite] Dead assignment, property prev is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3722:2: [definite] Dead assignment, property prevAll is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3722:2: [definite] Dead assignment, property prevUntil is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3722:2: [definite] Dead assignment, property siblings is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3802:3: [definite] Dead assignment, property legend is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3804:3: [definite] Dead assignment, property tr is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3806:3: [definite] Dead assignment, property col is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3807:3: [definite] Dead assignment, property area is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3808:3: [definite] Dead assignment, property _default is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3811:1: [definite] Dead assignment, property optgroup is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3812:1: [definite] Dead assignment, property tbody is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3812:17: [definite] Dead assignment, property tfoot is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3812:33: [definite] Dead assignment, property colgroup is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3812:52: [definite] Dead assignment, property caption is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3813:1: [definite] Dead assignment, property th is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3817:2: [definite] Dead assignment, property _default is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4147:2: [definite] Dead assignment, property appendTo is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4147:2: [definite] Dead assignment, property insertAfter is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4147:2: [definite] Dead assignment, property insertBefore is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4147:2: [definite] Dead assignment, property prependTo is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4147:2: [definite] Dead assignment, property replaceAll is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4186:2: [definite] Dead assignment, property empty is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4186:2: [definite] Dead assignment, property remove is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4304:14: [definite] Dead assignment, property position is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4304:36: [definite] Dead assignment, property visibility is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4304:58: [definite] Dead assignment, property display is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4316:1: [definite] Dead assignment, property css is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4508:2: [definite] Dead assignment, property hidden is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4519:2: [definite] Dead assignment, property visible is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4632:2: [definite] Dead assignment, property ajaxComplete is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4632:2: [definite] Dead assignment, property ajaxError is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4632:2: [definite] Dead assignment, property ajaxSend is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4632:2: [definite] Dead assignment, property ajaxStart is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4632:2: [definite] Dead assignment, property ajaxStop is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4632:2: [definite] Dead assignment, property ajaxSuccess is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4686:3: [definite] Dead assignment, property url is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4687:3: [definite] Dead assignment, property global is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4688:3: [definite] Dead assignment, property type is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4689:3: [definite] Dead assignment, property contentType is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4690:3: [definite] Dead assignment, property processData is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4691:3: [definite] Dead assignment, property async is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4703:3: [definite] Dead assignment, property xhr is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4703:75: [definite] Reading absent property ActiveXObject
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4712:3: [definite] Dead assignment, property accepts is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4713:4: [definite] Dead assignment, property xml is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4714:4: [definite] Dead assignment, property html is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4715:4: [definite] Dead assignment, property script is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4716:4: [definite] Dead assignment, property json is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4717:4: [definite] Dead assignment, property text is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4718:4: [definite] Dead assignment, property _default is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5436:12: [definite] Dead assignment, property opacity is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5437:13: [definite] Dead assignment, property opacity is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5439:2: [definite] Dead assignment, property fadeIn is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5439:2: [definite] Dead assignment, property fadeOut is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5439:2: [definite] Dead assignment, property slideDown is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5439:2: [definite] Dead assignment, property slideToggle is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5439:2: [definite] Dead assignment, property slideUp is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5471:3: [definite] Dead assignment, property linear is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5474:3: [definite] Dead assignment, property swing is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5495:2: [definite] Dead assignment, property update is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5509:2: [definite] Dead assignment, property cur is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5519:2: [definite] Dead assignment, property custom is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5540:2: [definite] Dead assignment, property show is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5555:2: [definite] Dead assignment, property hide is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5565:2: [definite] Dead assignment, property step is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5652:3: [definite] Dead assignment, property slow is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5653:4: [definite] Dead assignment, property fast is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5655:4: [definite] Dead assignment, property _default is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5659:3: [definite] Dead assignment, property opacity is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5663:3: [definite] Dead assignment, property _default is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5674:2: [definite] Dead assignment, property animated is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5685:3: [definite] Dead assignment, property height is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5685:3: [definite] Dead assignment, property marginBottom is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5685:3: [definite] Dead assignment, property marginTop is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5685:3: [definite] Dead assignment, property paddingBottom is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5685:3: [definite] Dead assignment, property paddingTop is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5691:2: [definite] Dead assignment, property offset is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5786:2: [definite] Dead assignment, property initialize is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5816:2: [definite] Dead assignment, property bodyOffset is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5829:2: [definite] Dead assignment, property setOffset is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5905:2: [definite] Dead assignment, property scrollLeft is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5905:2: [definite] Dead assignment, property scrollTop is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5952:2: [definite] Dead assignment, property innerHeight is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5952:2: [definite] Dead assignment, property innerWidth is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5959:2: [definite] Dead assignment, property outerHeight is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5959:2: [definite] Dead assignment, property outerWidth is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5965:2: [definite] Dead assignment, property height is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5965:2: [definite] Dead assignment, property width is never read
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:25:2: [definite] The variable _jQuery is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:28:2: [definite] The variable _$ is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:38:2: [definite] The variable quickExpr is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:41:2: [definite] The variable isSimple is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:44:2: [definite] The variable rnotwhite is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:47:2: [definite] The variable rtrim is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:50:2: [definite] The variable rsingleTag is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:69:2: [definite] The variable hasOwnProperty is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:71:2: [definite] The variable slice is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:75:8: [definite] The variable context is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:76:7: [definite] The variable match is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:76:14: [definite] The variable elem is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:76:20: [definite] The variable ret is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:76:25: [definite] The variable doc is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:183:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:187:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:193:7: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:205:13: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:227:12: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:239:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:261:6: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:267:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:271:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:275:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:280:7: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:281:43: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:286:7: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:302:98: [definite] The variable src is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:338:10: [definite] The variable clone is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:357:14: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:433:8: [definite] The variable toplevel is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:437:6: [definite] Unreachable code
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:452:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:456:17: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:480:17: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:487:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:490:14: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:554:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:576:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:590:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:608:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:623:7: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:642:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:656:12: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:710:19: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:726:21: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:736:1: [definite] Unreachable function doScrollCheck
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:755:19: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:760:1: [definite] Unreachable function evalScript
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:778:1: [definite] Unreachable function access
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:875:4: [definite] Unreachable code
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:882:7: [definite] Reading absent property (computed name)
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:890:30: [definite] Unreachable function click
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:947:43: [definite] The variable windowData is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1003:37: [definite] Reading absent property (computed name)
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1006:14: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1049:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1054:21: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1072:76: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1078:14: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1079:20: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1085:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1108:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1125:18: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1133:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1142:20: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1150:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1151:20: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1158:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1162:28: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1164:15: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1170:14: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1174:5: [definite] The variable rclass is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1175:2: [definite] The variable rspace is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1176:2: [definite] The variable rreturn is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1177:2: [definite] The variable rspecialurl is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1178:2: [definite] The variable rtype is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1179:2: [definite] The variable rfocusable is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1180:2: [definite] The variable rclickable is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1181:2: [definite] The variable rradiocheck is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1184:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1188:14: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1189:20: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1197:12: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1199:21: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1230:15: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1232:21: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1262:15: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1266:21: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1272:20: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1297:12: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1308:7: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1366:20: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1389:35: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1416:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1510:5: [definite] The variable fcleanup is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1510:16: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1511:37: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1525:7: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1558:18: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1635:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1750:33: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1785:16: [definite] Reading absent property (computed name)
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1786:21: [definite] Reading absent property (computed name)
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1791:7: [definite] The variable isClick is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1799:6: [definite] Unreachable code
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1816:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1866:7: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1936:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1944:12: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1948:61: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1962:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1970:14: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2041:28: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2052:5: [definite] The variable withinElement is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2052:21: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2081:1: [definite] The variable delegate is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2081:12: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2090:4: [definite] The variable fix is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2092:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2095:13: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2105:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2107:61: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2115:64: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2128:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2139:5: [definite] The variable formElems is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2141:1: [definite] Unreachable function getVal
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2149:30: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2161:1: [definite] Unreachable function testChange
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2190:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2200:12: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2213:19: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2221:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2228:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2237:5: [definite] The variable changeFilters is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2241:1: [definite] Unreachable function trigger
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2248:54: [definite] The variable orig is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2250:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2253:14: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2258:3: [definite] Unreachable function handler
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2266:30: [definite] The variable i is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2267:22: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2282:52: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2289:14: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2296:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2305:20: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2309:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2310:20: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2325:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2334:40: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2347:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2351:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2364:7: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2370:1: [definite] Unreachable function liveHandler
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2424:1: [definite] Unreachable function liveConvert
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2430:67: [definite] The variable i is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2433:22: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2447:33: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2466:5: [definite] The variable chunker is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2467:2: [definite] The variable done is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2468:2: [definite] The variable toString is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2469:2: [definite] The variable hasDuplicate is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2470:2: [definite] The variable baseHasDuplicate is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2481:14: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2603:21: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2620:18: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2624:15: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2656:17: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2755:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2760:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2783:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2811:7: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2821:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2833:7: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2839:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2852:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2857:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2878:7: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2881:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2884:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2901:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2914:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2932:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2938:12: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2941:13: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2944:12: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2947:13: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2953:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2956:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2959:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2962:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2965:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2968:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2971:13: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2974:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2977:13: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2980:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2983:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2986:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2989:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2992:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2997:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3000:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3003:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3006:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3009:7: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3012:7: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3015:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3018:7: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3023:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3033:15: [definite] The variable declaration i shadows a parameter
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3044:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3093:7: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3096:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3099:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3103:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3134:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3144:5: [definite] The variable origPOS is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3148:113: [definite] The variable all is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3153:5: [definite] The variable makeArray is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3153:17: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3170:3: [definite] Unreachable code
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3171:14: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3192:5: [definite] The variable sortOrder is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3195:14: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3210:14: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3225:14: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3247:1: [definite] Unreachable function getText
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3281:18: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3288:20: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3308:19: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3332:26: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3351:12: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3392:20: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3401:1: [definite] Unreachable function dirNodeCheck
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3432:1: [definite] Unreachable function dirCheck
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3470:51: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3472:5: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3476:13: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3483:5: [definite] The variable posProcess is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3483:18: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3514:1: [definite] Unreachable code
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3517:5: [definite] The variable runtil is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3518:2: [definite] The variable rparentsprev is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3520:2: [definite] The variable rmultiselector is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3524:5: [definite] The variable winnow is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3524:14: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3526:32: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3531:32: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3536:40: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3547:31: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3553:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3576:7: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3578:22: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3587:7: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3591:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3595:6: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3599:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3633:19: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3646:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3659:7: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3670:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3677:1: [definite] Unreachable function isDisconnected
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3682:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3686:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3689:16: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3692:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3695:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3698:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3701:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3704:13: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3707:13: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3710:12: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3713:12: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3716:12: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3721:4: [definite] The variable fn is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3722:22: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3744:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3752:7: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3763:7: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3776:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3788:5: [definite] The variable rinlinejQuery is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3789:2: [definite] The variable rleadingWhitespace is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3790:2: [definite] The variable rxhtmlTag is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3791:2: [definite] The variable rselfClosing is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3792:2: [definite] The variable rtagName is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3793:2: [definite] The variable rtbody is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3794:2: [definite] The variable rhtml is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3795:2: [definite] The variable fcloseTag is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3795:14: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3821:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3823:21: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3836:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3838:21: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3851:13: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3865:13: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3866:20: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3878:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3879:20: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3884:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3885:29: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3892:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3893:41: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3900:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3901:41: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3908:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3910:43: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3920:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3922:43: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3932:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3934:22: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3968:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3994:14: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3996:25: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4008:15: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4016:21: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4032:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4036:12: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4040:21: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4079:3: [definite] Unreachable function root
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4088:1: [definite] Unreachable function cloneCopyEvent
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4091:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4111:1: [definite] Unreachable function buildFragment
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4146:4: [definite] The variable original is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4147:22: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4161:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4174:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4185:4: [definite] The variable fn is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4186:22: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4192:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4202:22: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4287:1: [definite] Unreachable function cleanData
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4295:5: [definite] The variable rexclude is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4296:2: [definite] The variable ralpha is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4297:2: [definite] The variable ropacity is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4298:2: [definite] The variable rfloat is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4299:2: [definite] The variable rdashAlpha is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4300:2: [definite] The variable rupper is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4301:2: [definite] The variable rnumpx is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4302:2: [definite] The variable rnum is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4304:2: [definite] The variable cssShow is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4305:2: [definite] The variable cssWidth is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4306:2: [definite] The variable cssHeight is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4309:2: [definite] The variable getComputedStyle is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4311:2: [definite] The variable styleFloat is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4312:2: [definite] The variable fcamelCase is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4312:15: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4316:17: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4317:42: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4331:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4376:7: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4380:4: [definite] Unreachable function getWH
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4387:25: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4412:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4489:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4508:31: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4519:32: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4523:5: [definite] The variable jsc is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4524:2: [definite] The variable rscript is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4525:2: [definite] The variable rselectTextarea is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4526:2: [definite] The variable rinput is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4527:2: [definite] The variable jsre is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4528:2: [definite] The variable rquery is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4529:2: [definite] The variable rts is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4530:2: [definite] The variable rurl is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4531:2: [definite] The variable r20 is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4537:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4577:14: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4604:13: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4607:18: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4608:19: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4611:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4616:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4622:23: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4631:91: [definite] The variable i is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4632:17: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4639:7: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4656:13: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4660:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4664:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4681:13: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4704:4: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4707:4: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4726:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4766:41: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4826:49: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4914:53: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4979:16: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4993:15: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5015:3: [definite] Unreachable function success
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5027:3: [definite] Unreachable function complete
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5044:3: [definite] Unreachable function trigger
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5052:15: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5068:15: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5081:19: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5097:12: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5145:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5154:3: [definite] Unreachable function add
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5163:20: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5170:20: [definite] Unreachable function buildParams
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5174:24: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5192:24: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5208:5: [definite] The variable elemdisplay is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5209:2: [definite] The variable rfxtypes is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5210:2: [definite] The variable rfxnum is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5211:2: [definite] The variable timerId is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5222:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5266:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5291:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5298:14: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5310:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5315:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5322:60: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5361:23: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5400:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5407:13: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5438:4: [definite] The variable props is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5439:22: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5445:9: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5458:18: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5471:11: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5474:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5481:6: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5495:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5509:7: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5519:10: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5528:3: [definite] Unreachable function t
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5540:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5555:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5565:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5632:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5646:8: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5659:12: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5663:13: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5674:33: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5675:37: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5691:21: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5699:21: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5717:21: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5725:21: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5786:14: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5816:14: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5829:13: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5858:12: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5889:16: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5890:19: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5902:31: [definite] The variable i is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5905:24: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5914:21: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5939:1: [definite] Unreachable function getWindow
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5947:36: [definite] The variable i is never used
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5952:30: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5959:30: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5965:22: [definite] Unreachable function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:159:15: [maybe] TypeError, call to non-function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:245:3: [maybe] TypeError, call to non-function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:313:38: [maybe] TypeError, call to non-function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:411:11: [maybe] TypeError, call to non-function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:420:4: [maybe] TypeError, non-function event handler
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:520:36: [maybe] TypeError, call to non-function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:690:33: [maybe] TypeError, accessing property of null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:698:16: [maybe] TypeError, call to non-function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:700:2: [maybe] TypeError, accessing property of null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:705:6: [maybe] TypeError, accessing property of null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:722:3: [maybe] TypeError, call to non-function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:830:22: [maybe] TypeError, accessing property of null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:842:22: [maybe] TypeError, call to non-function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:846:19: [maybe] TypeError, call to non-function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:860:12: [maybe] TypeError, accessing property of null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:906:3: [maybe] TypeError, accessing property of null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:907:21: [maybe] TypeError, accessing property of null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:964:25: [maybe] TypeError, accessing property of null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:989:15: [maybe] TypeError, accessing property of null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1003:37: [maybe] TypeError, accessing property of null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1770:11: [maybe] TypeError, call to non-function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1777:16: [maybe] TypeError, call to non-function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1784:36: [maybe] TypeError, accessing property of null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1791:17: [maybe] TypeError, call to non-function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2087:1: [maybe] TypeError, call to non-function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2317:16: [maybe] TypeError, call to non-function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2320:4: [maybe] TypeError, accessing property of null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3280:7: [maybe] <Document.getElementById>("script1543012461618") did not match any elements
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3330:32: [maybe] TypeError, accessing property of null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3331:4: [maybe] TypeError, accessing property of null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3331:4: [maybe] TypeError, call to non-function
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3385:2: [maybe] TypeError, accessing property of null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3506:20: [maybe] TypeError, accessing property of null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5493:1: [maybe] TypeError, accessing property of null/undefined
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:159:15: [maybe] Reading absent property isFunction
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:245:3: [maybe] Reading absent property bindReady
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:248:8: [maybe] Reading absent property isReady
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:313:38: [maybe] Reading absent property isFunction
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:373:9: [maybe] Reading absent property isReady
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:376:24: [maybe] Reading absent property ready
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:395:9: [maybe] Reading absent property triggerHandler
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:411:11: [maybe] Reading absent property ready
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:420:37: [maybe] Reading absent property ready
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:519:13: [maybe] Reading absent property length
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:520:36: [maybe] Reading absent property isFunction
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:690:18: [maybe] Reading absent property version
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:690:33: [maybe] Reading absent property version
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:698:16: [maybe] Reading absent property uaMatch
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:700:2: [maybe] Reading absent property browser
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:701:27: [maybe] Reading absent property version
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:705:6: [maybe] Reading absent property browser
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:705:6: [maybe] Reading absent property webkit
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:722:3: [maybe] Reading absent property ready
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:830:22: [maybe] Reading absent property firstChild of host object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:842:22: [maybe] Reading absent property getAttribute of host object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:846:19: [maybe] Reading absent property getAttribute of host object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:851:27: [maybe] Reading absent property opacity of host object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:855:15: [maybe] Reading absent property cssFloat of host object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:860:12: [maybe] Reading absent property value of host object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:877:29: [maybe] Reading absent property firstChild of host object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:907:21: [maybe] Reading absent property support
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:964:25: [maybe] Reading absent property noData
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:972:37: [maybe] Reading absent property cache
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1770:11: [maybe] Reading absent property makeArray
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1777:16: [maybe] Reading absent property data
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1784:36: [maybe] Reading absent property noData
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1791:17: [maybe] Reading absent property nodeName
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1926:9: [maybe] Reading absent property proxy
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1931:11: [maybe] Reading absent property bindReady
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1932:14: [maybe] Reading absent property noop
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1981:8: [maybe] Reading absent property preventDefault
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2087:1: [maybe] Reading absent property each
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2102:7: [maybe] Reading absent property submitBubbles
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2137:7: [maybe] Reading absent property changeBubbles
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2317:16: [maybe] Reading absent property Event
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2320:4: [maybe] Reading absent property event
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2321:11: [maybe] Reading absent property result
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2437:7: [maybe] Reading absent property attrFn
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3276:27: [maybe] Reading absent property firstChild of host object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3330:7: [maybe] Reading absent property firstChild of host object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3330:32: [maybe] Reading absent property firstChild of host object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3330:32: [maybe] Reading absent property getAttribute of host object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3331:4: [maybe] Reading absent property firstChild of host object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3331:4: [maybe] Reading absent property getAttribute of host object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3385:2: [maybe] Reading absent property lastChild of host object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3505:15: [maybe] Reading absent property selectors
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3507:17: [maybe] Reading absent property uniqueSort
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3816:7: [maybe] Reading absent property htmlSerialize
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4311:15: [maybe] Reading absent property cssFloat
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5289:11: [maybe] Reading absent property toggle
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5493:1: [maybe] Reading absent property fx
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js: [maybe] Uncaught exception, constructed at [benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:159:15, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:245:3, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:313:38, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:376:12, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:411:11, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:520:36, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:690:33, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:698:16, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:700:2, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:705:6, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:722:3, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:830:22, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:842:22, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:846:19, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:860:12, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:906:3, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:907:21, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:964:25, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:989:15, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1003:37, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1770:11, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1777:16, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1791:17, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2087:1, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2317:16, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2320:4, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3330:32, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3331:4, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3385:2, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3506:20, benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5493:1, HOST(string-replace-model.js):49:41, HOST(string-replace-model.js):50:41, HOST(string-replace-model.js):61:46]
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:328:11: [maybe] Reading absent property (computed name)
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:329:12: [maybe] Reading absent property (computed name)
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:386:19: [maybe] Reading absent property (computed name)
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:513:27: [maybe] Converting object to string
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:513:27: [maybe] Converting primitive string to object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:513:59: [maybe] Converting object to string
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:513:59: [maybe] Converting primitive string to object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:541:11: [maybe] Converting primitive string to object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:547:20: [maybe] Converting primitive string to object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:547:72: [maybe] Reading absent property (computed name)
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:675:8: [maybe] Converting object to string
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:675:8: [maybe] Converting primitive string to object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:690:17: [maybe] Reading absent property (computed name)
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:821:7: [maybe] Reading absent property (computed name)
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:842:10: [maybe] Converting null to string
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:851:12: [maybe] Converting undefined to string
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:860:12: [maybe] Reading absent property (computed name)
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:921:25: [maybe] Reading absent property (computed name)
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:964:25: [maybe] Reading absent property (computed name)
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:964:39: [maybe] Converting object to string
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:964:39: [maybe] Converting primitive string to object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:972:12: [maybe] Reading absent property (computed name)
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:981:9: [maybe] Conversion to number yields NaN
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:989:15: [maybe] Reading absent property (computed name)
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1727:15: [maybe] Reading absent property (computed name)
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1732:5: [maybe] Reading absent property (computed name)
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1738:9: [maybe] Converting object to string
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1738:9: [maybe] Converting primitive string to object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1784:36: [maybe] Reading absent property (computed name)
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1784:50: [maybe] Converting object to string
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1784:50: [maybe] Converting primitive string to object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1864:9: [maybe] Converting object to string
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1864:9: [maybe] Converting primitive string to object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1986:14: [maybe] Converting primitive string to object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2428:14: [maybe] Converting object to string
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:2428:14: [maybe] Converting primitive string to object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3148:67: [maybe] Converting primitive string to object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3149:18: [maybe] Conversion from string to number yields NaN
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3149:18: [maybe] Conversion to number yields NaN
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3149:18: [maybe] Converting object to number
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3149:18: [maybe] The variable num has values with different types
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4631:14: [maybe] Converting object to string
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:4631:14: [maybe] Converting primitive string to object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5685:3: [maybe] Converting object to string
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5949:13: [maybe] Converting object to string
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:5949:13: [maybe] Converting primitive string to object
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:346:6: [info] Writing to unknown property that may cause loss of precision
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:700:2: [info] Writing to unknown property that may cause loss of precision
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:327:4: [info] Reading from unknown property that may cause loss of precision
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:328:11: [info] Reading from unknown property that may cause loss of precision
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:329:12: [info] Reading from unknown property that may cause loss of precision
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:964:25: [info] Reading from unknown property that may cause loss of precision
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:1784:36: [info] Reading from unknown property that may cause loss of precision
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:386:30: [unsound] Assuming UInt-addition is closed
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:806:10: [unsound] Assuming Date.now returns fixed value
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:981:9: [unsound] Assuming UInt-addition is closed
+benchmarks/tajs/src/jquery/libraries/jquery-1.4.js:3271:20: [unsound] Assuming Date.now returns fixed value
+Soundness testing succeeded for 3933 checks (with 6 expected failures)

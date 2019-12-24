@@ -2,33 +2,32 @@ package dk.brics.tajs.test;
 
 import dk.brics.tajs.Main;
 import dk.brics.tajs.flowgraph.BasicBlock;
-import dk.brics.tajs.lattice.ContextArguments;
-import dk.brics.tajs.lattice.HeapContext;
+import dk.brics.tajs.lattice.Context;
 import dk.brics.tajs.lattice.ObjectLabel;
 import dk.brics.tajs.lattice.State;
 import dk.brics.tajs.lattice.Value;
-import dk.brics.tajs.monitoring.CompositeMonitoring;
+import dk.brics.tajs.monitoring.AnalysisMonitor;
+import dk.brics.tajs.monitoring.CompositeMonitor;
 import dk.brics.tajs.monitoring.DefaultAnalysisMonitoring;
-import dk.brics.tajs.monitoring.Monitoring;
 import dk.brics.tajs.options.Options;
-import dk.brics.tajs.test.monitors.OrdinaryExitReachableCheckerMonitor;
 import dk.brics.tajs.util.Collections;
+import dk.brics.tajs.util.Collectors;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.function.Supplier;
 
 import static dk.brics.tajs.util.Collections.newSet;
 import static org.junit.Assert.assertEquals;
 
 public class TestLiteralContextSensitivity {
 
-    final Set<Value> none = Collections.<Value>newSet();
+    final Supplier<Set<Value>> none = Collections::<Value>newSet;
 
     @Before
     public void before() {
-        Main.initLogging();
         Main.reset();
         Options.get().enableTest();
         Options.get().enableDeterminacy();
@@ -60,8 +59,8 @@ public class TestLiteralContextSensitivity {
     }
 
     @Test
-    public void forIn() {
-        test("o", set("x"), "var o ; function f(p1, p2){for(v in {x: 43}){o = {};}}; f('x');");
+    public void correlatedPropertyAccess() {
+        test("o", set("x"), "var o ; function f(p1, p2){for(v in {x: 43}){o = {};}([][v] = [][v])}; f('x');");
     }
 
     @Test
@@ -89,34 +88,33 @@ public class TestLiteralContextSensitivity {
         test("o", set("x"), "var o ; function f(p1, p2){o = [p1, p2];}; var y = Math.random()? 'y1': 'y2'; f('x', y);");
     }
 
-    private Set<Value> set(String... stringValues) {
-        final Set<Value> values = newSet();
-        for (String string : stringValues) {
-            values.add(Value.makeStr(string));
-        }
-
-        return values;
+    private Supplier<Set<Value>> set(String... stringValues) {
+        return () -> {
+            final Set<Value> values = newSet();
+            for (String string : stringValues) {
+                values.add(Value.makeStr(string));
+            }
+            return values;
+        };
     }
 
-    private void test(String objectVariable, Set<Value> contextValues, String... sourceLines) {
+    private void test(String objectVariable, Supplier<Set<Value>> contextValues, String... sourceLines) {
         TestMonitor testMonitor = new TestMonitor();
-        CompositeMonitoring.buildFromList(testMonitor, new Monitoring());
-        Misc.runSource(sourceLines, CompositeMonitoring.buildFromList(testMonitor, new OrdinaryExitReachableCheckerMonitor()));
+        Misc.runSource(sourceLines, CompositeMonitor.make(new AnalysisMonitor(), testMonitor));
         Set<ObjectLabel> objectLabels = testMonitor.state.readVariableDirect(objectVariable).getObjectLabels();
         Set<Value> values = newSet();
         for (ObjectLabel objectLabel : objectLabels) {
-            HeapContext heapContext = objectLabel.getHeapContext();
-            ContextArguments arguments;
-            if(heapContext instanceof HeapContext) {
-                arguments = ((HeapContext) heapContext).getFunctionArguments();
-            }else{
-                arguments = null;
-            }
-            if (arguments != null)
-                values.addAll(arguments.getArguments().stream().filter(e -> e != null).collect(Collectors.toList()));
+            Context heapContext = objectLabel.getHeapContext();
+            if (heapContext != null && heapContext.getArguments() != null)
+                values.addAll(heapContext.getArguments().stream().filter(Objects::nonNull).collect(Collectors.toList()));
         }
         values.remove(null);
-        assertEquals(contextValues, values);
+        try {
+            assertEquals(contextValues.get(), values);
+        } catch (Throwable e) {
+            e.printStackTrace(System.out);
+            throw e;
+        }
     }
 
     private class TestMonitor extends DefaultAnalysisMonitoring {
@@ -124,7 +122,7 @@ public class TestLiteralContextSensitivity {
         private State state;
 
         @Override
-        public void visitPostBlockTransfer(BasicBlock b, State state) {
+        public void visitBlockTransferPost(BasicBlock b, State state) {
             if (b.getFunction().isMain() && b.getFunction().getOrdinaryExit() == b) {
                 this.state = state;
             }

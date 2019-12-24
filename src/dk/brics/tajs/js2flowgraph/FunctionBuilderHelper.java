@@ -1,9 +1,26 @@
+/*
+ * Copyright 2009-2019 Aarhus University
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package dk.brics.tajs.js2flowgraph;
 
 import com.google.javascript.jscomp.parsing.parser.LiteralToken;
 import com.google.javascript.jscomp.parsing.parser.SourceFile;
 import com.google.javascript.jscomp.parsing.parser.TokenType;
 import com.google.javascript.jscomp.parsing.parser.trees.BinaryOperatorTree;
+import com.google.javascript.jscomp.parsing.parser.trees.BlockTree;
 import com.google.javascript.jscomp.parsing.parser.trees.ParseTree;
 import com.google.javascript.jscomp.parsing.parser.trees.ParseTreeType;
 import com.google.javascript.jscomp.parsing.parser.util.SourcePosition;
@@ -11,9 +28,9 @@ import dk.brics.tajs.flowgraph.AbstractNode;
 import dk.brics.tajs.flowgraph.BasicBlock;
 import dk.brics.tajs.flowgraph.Function;
 import dk.brics.tajs.flowgraph.SourceLocation;
-import dk.brics.tajs.flowgraph.jsnodes.AssumeNode;
+import dk.brics.tajs.flowgraph.SourceLocation.SourceLocationMaker;
 import dk.brics.tajs.flowgraph.jsnodes.BeginWithNode;
-import dk.brics.tajs.flowgraph.jsnodes.BinaryOperatorNode;
+import dk.brics.tajs.flowgraph.jsnodes.BinaryOperatorNode.Op;
 import dk.brics.tajs.flowgraph.jsnodes.CallNode;
 import dk.brics.tajs.flowgraph.jsnodes.ConstantNode;
 import dk.brics.tajs.flowgraph.jsnodes.EndForInNode;
@@ -32,7 +49,7 @@ import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 import static dk.brics.tajs.util.Collections.newList;
@@ -51,7 +68,6 @@ public class FunctionBuilderHelper {
      */
     public static void addNodeToBlock(AbstractNode node, BasicBlock block, AstEnv env) {
         block.addNode(node);
-        node.setRegistersDone(env.isStatementLevel());
     }
 
     /**
@@ -66,7 +82,7 @@ public class FunctionBuilderHelper {
         // create new empty basic blocks
         IdentityHashMap<BasicBlock, BasicBlock> translationMap = new IdentityHashMap<>();
         for (BasicBlock orig : origs) {
-            BasicBlock clone = new BasicBlock(orig.getFunction());
+            BasicBlock clone = makeUnregisteredBlock(orig.getFunction());
             translationMap.put(orig, clone);
             if (functionAndBlockManager.isUnreachable(orig)) {
                 BasicBlock predecessor = functionAndBlockManager.getUnreachableSyntacticSuccessorPredecessor(orig);
@@ -75,7 +91,7 @@ public class FunctionBuilderHelper {
         }
 
         // clone the nodes
-        for (Map.Entry<BasicBlock, BasicBlock> origAndClone : translationMap.entrySet()) {
+        for (Entry<BasicBlock, BasicBlock> origAndClone : translationMap.entrySet()) {
             BasicBlock orig = origAndClone.getKey();
             BasicBlock clone = origAndClone.getValue();
             for (AbstractNode origNode : orig.getNodes()) {
@@ -85,11 +101,7 @@ public class FunctionBuilderHelper {
                     ((IfNode) clonedNode).setSuccessors(translationMap.get(origIfNode.getSuccTrue()), translationMap.get(origIfNode.getSuccFalse()));
                 }
                 if (clonedNode.getDuplicateOf() == null) {
-                    if (clonedNode instanceof EndForInNode || clonedNode instanceof EndWithNode) {
-                        // FIXME remove this special case. But somehow avoid doing it such that the original node has index = -1!
-                    } else {
-                        clonedNode.setDuplicateOf(origNode);
-                    }
+                    clonedNode.setDuplicateOf(origNode);
                 }
                 clone.addNode(clonedNode);
             }
@@ -101,32 +113,6 @@ public class FunctionBuilderHelper {
             }
         }
         return translationMap;
-    }
-
-    /**
-     * Creates node for a directive, or null if the directive is not recognized.
-     */
-    public static AbstractNode makeDirectiveNode(String text, SourceLocation location) {
-        Directive directive = null;
-        for (Directive d : Directive.values()) {
-            if (text.equals(d.getName())) {
-                directive = d;
-                break;
-            }
-        }
-        if (directive == null) {
-            return null;
-        }
-        final AbstractNode directiveNode;
-        switch (directive) {
-            case NO_FLOW: {
-                directiveNode = AssumeNode.makeUnreachable(location);
-                break;
-            }
-            default:
-                throw new AnalysisException("Unexpected directive: " + directive);
-        }
-        return directiveNode;
     }
 
     /**
@@ -163,50 +149,50 @@ public class FunctionBuilderHelper {
     /**
      * Closure compiler binary operator -&gt; TAJS flow graph operator.
      */
-    public static BinaryOperatorNode.Op getFlowGraphBinaryNonAssignmentOp(TokenType type) {
+    public static Op getFlowGraphBinaryNonAssignmentOp(TokenType type) {
         switch (type) {
             case SLASH:
-                return BinaryOperatorNode.Op.DIV;
+                return Op.DIV;
             case LEFT_SHIFT:
-                return BinaryOperatorNode.Op.SHL;
+                return Op.SHL;
             case PERCENT:
-                return BinaryOperatorNode.Op.REM;
+                return Op.REM;
             case STAR:
-                return BinaryOperatorNode.Op.MUL;
+                return Op.MUL;
             case RIGHT_SHIFT:
-                return BinaryOperatorNode.Op.SHR;
+                return Op.SHR;
             case MINUS:
-                return BinaryOperatorNode.Op.SUB;
+                return Op.SUB;
             case UNSIGNED_RIGHT_SHIFT:
-                return BinaryOperatorNode.Op.USHR;
+                return Op.USHR;
             case GREATER_EQUAL:
-                return BinaryOperatorNode.Op.GE;
+                return Op.GE;
             case CLOSE_ANGLE:
-                return BinaryOperatorNode.Op.GT;
+                return Op.GT;
             case LESS_EQUAL:
-                return BinaryOperatorNode.Op.LE;
+                return Op.LE;
             case OPEN_ANGLE:
-                return BinaryOperatorNode.Op.LT;
+                return Op.LT;
             case NOT_EQUAL:
-                return BinaryOperatorNode.Op.NE;
+                return Op.NE;
             case NOT_EQUAL_EQUAL:
-                return BinaryOperatorNode.Op.SNE;
+                return Op.SNE;
             case PLUS:
-                return BinaryOperatorNode.Op.ADD;
+                return Op.ADD;
             case EQUAL_EQUAL_EQUAL:
-                return BinaryOperatorNode.Op.SEQ;
+                return Op.SEQ;
             case EQUAL_EQUAL:
-                return BinaryOperatorNode.Op.EQ;
+                return Op.EQ;
             case BAR:
-                return BinaryOperatorNode.Op.OR;
+                return Op.OR;
             case AMPERSAND:
-                return BinaryOperatorNode.Op.AND;
+                return Op.AND;
             case CARET:
-                return BinaryOperatorNode.Op.XOR;
+                return Op.XOR;
             case INSTANCEOF:
-                return BinaryOperatorNode.Op.INSTANCEOF;
+                return Op.INSTANCEOF;
             case IN:
-                return BinaryOperatorNode.Op.IN;
+                return Op.IN;
             case COMMA:
             default:
                 throw new AnalysisException("Unhandled binary operator: " + type);
@@ -216,7 +202,7 @@ public class FunctionBuilderHelper {
     /**
      * Closure compiler  compound assignments binary operator -&gt; TAJS flow graph operator.
      */
-    public static BinaryOperatorNode.Op getFlowGraphBinaryOperationFromCompoundAssignment(BinaryOperatorTree tree) {
+    public static Op getFlowGraphBinaryOperationFromCompoundAssignment(BinaryOperatorTree tree) {
         final TokenType newOperation;
         switch (tree.operator.type) {
             case PLUS_EQUAL:
@@ -272,6 +258,8 @@ public class FunctionBuilderHelper {
                 return UnaryOperatorNode.Op.PLUS;
             case MINUS:
                 return UnaryOperatorNode.Op.MINUS;
+            case TYPEOF:
+                return UnaryOperatorNode.Op.TYPEOF;
             case DELETE:
             default:
                 throw new AnalysisException("Unhandled unary type: " + type);
@@ -281,49 +269,22 @@ public class FunctionBuilderHelper {
     /**
      * Closure compiler prefix/postfix operator -&gt; TAJS flow graph operator.
      */
-    public static BinaryOperatorNode.Op getPrefixPostfixOp(TokenType token) {
+    public static Op getPrefixPostfixOp(TokenType token) {
         switch (token) {
             case PLUS_PLUS:
-                return BinaryOperatorNode.Op.ADD;
+                return Op.ADD;
             case MINUS_MINUS:
-                return BinaryOperatorNode.Op.SUB;
+                return Op.SUB;
             default:
                 throw new AnalysisException("Unhandled binary type: " + token);
         }
     }
 
     /**
-     * Creates an assume node for the given reference being non-null/undefined.
-     */
-    public static AssumeNode makeAssumeNonNullUndef(Reference base) {
-        if (base == null)
-            return null;
-        switch (base.type) {
-            case Variable: {
-                String name = base.asVariable().name;
-                if ("this".equals(name)) {
-                    return null;
-                }
-                return AssumeNode.makeVariableNonNullUndef(name, base.location);
-            }
-            case StaticProperty: {
-                Reference.StaticProperty property = base.asStaticProperty();
-                return AssumeNode.makePropertyNonNullUndef(property.baseRegister, property.propertyName, base.location);
-            }
-            case DynamicProperty: {
-                Reference.DynamicProperty property = base.asDynamicProperty();
-                return AssumeNode.makePropertyNonNullUndef(property.baseRegister, property.propertyRegister, base.location);
-            }
-            default:
-                throw new AnalysisException("Unexpected reference type: " + base.type);
-        }
-    }
-
-    /**
      * Creates a TAJS source location from the start position of given AST node.
      */
-    public static SourceLocation makeSourceLocation(ParseTree tree) {
-        return new SourceLocation(tree.location.start.line + 1, tree.location.start.column + 1, tree.location.start.source.name);
+    public static SourceLocation makeSourceLocation(ParseTree tree, SourceLocationMaker sourceLocationMaker) {
+        return sourceLocationMaker.make(tree.location.start.line + 1, tree.location.start.column + 1, tree.location.end.line + 1, tree.location.end.column + 1);
     }
 
     /**
@@ -337,18 +298,19 @@ public class FunctionBuilderHelper {
     }
 
     /**
-     * Creates a TAJS source location from the end position of the given AST node.
+     * Creates a new basic block, for a function.
      */
-    public static SourceLocation makeSourceLocationEnd(ParseTree tree) {
-        return new SourceLocation(tree.location.end.line + 1, tree.location.end.column, tree.location.end.source.name);
+    public static BasicBlock makeBasicBlock(Function fun, FunctionAndBlockManager functionAndBlocksManager) {
+        BasicBlock newBlock = makeUnregisteredBlock(fun);
+        functionAndBlocksManager.add(newBlock);
+        return newBlock;
     }
 
     /**
-     * Creates a new basic block, for a function with some exception handler.
+     * Creates a new basic block, with some exception handler.
      */
-    public static BasicBlock makeBasicBlock(Function fun, BasicBlock exceptionHandler, FunctionAndBlockManager functionAndBlocksManager) {
-        BasicBlock newBlock = new BasicBlock(fun);
-        functionAndBlocksManager.add(newBlock);
+    public static BasicBlock makeBasicBlock(BasicBlock exceptionHandler, FunctionAndBlockManager functionAndBlocksManager) {
+        BasicBlock newBlock = makeBasicBlock(exceptionHandler.getFunction(), functionAndBlocksManager);
         newBlock.setExceptionHandler(exceptionHandler);
         return newBlock;
     }
@@ -356,8 +318,8 @@ public class FunctionBuilderHelper {
     /**
      * Creates a new basic block that becomes the exception handler for the given basic block.
      */
-    public static BasicBlock makeCatchBasicBlock(Function fun, BasicBlock thrower, FunctionAndBlockManager functionAndBlocksManager) {
-        BasicBlock catchBlock = makeBasicBlock(fun, thrower.getExceptionHandler(), functionAndBlocksManager);
+    public static BasicBlock makeCatchBasicBlock(BasicBlock thrower, FunctionAndBlockManager functionAndBlocksManager) {
+        BasicBlock catchBlock = makeBasicBlock(thrower.getExceptionHandler(), functionAndBlocksManager);
         thrower.setExceptionHandler(catchBlock);
         return catchBlock;
     }
@@ -365,8 +327,8 @@ public class FunctionBuilderHelper {
     /**
      * Creates a new basic block that joins trueBlock and falseBlock.
      */
-    public static BasicBlock makeJoinBasicBlock(AstEnv env, BasicBlock trueBlock, BasicBlock falseBlock, FunctionAndBlockManager functionAndBlocksManager) {
-        BasicBlock joinBlock = makeBasicBlock(env.getFunction(), trueBlock.getExceptionHandler(), functionAndBlocksManager);
+    public static BasicBlock makeJoinBasicBlock(BasicBlock trueBlock, BasicBlock falseBlock, FunctionAndBlockManager functionAndBlocksManager) {
+        BasicBlock joinBlock = makeBasicBlock(trueBlock.getExceptionHandler(), functionAndBlocksManager);
         trueBlock.addSuccessor(joinBlock);
         falseBlock.addSuccessor(joinBlock);
         return joinBlock;
@@ -375,10 +337,26 @@ public class FunctionBuilderHelper {
     /**
      * Creates a new basic block as a successor of the given basic block.
      */
-    public static BasicBlock makeSuccessorBasicBlock(Function fun, BasicBlock predecessor, FunctionAndBlockManager functionAndBlocksManager) {
-        BasicBlock successor = makeBasicBlock(fun, predecessor.getExceptionHandler(), functionAndBlocksManager);
+    public static BasicBlock makeSuccessorBasicBlock(BasicBlock predecessor, FunctionAndBlockManager functionAndBlocksManager) {
+        BasicBlock successor = makeBasicBlock(predecessor.getExceptionHandler(), functionAndBlocksManager);
         predecessor.addSuccessor(successor);
         return successor;
+    }
+
+    /**
+     * Creates a new basic block, with some exception handler. The block is supposed to be used as a jump-through block!
+     */
+    public static BasicBlock makeJumpThroughBlock(BasicBlock exceptionHandler) {
+        BasicBlock jumpThroughBlock = makeUnregisteredBlock(exceptionHandler.getFunction());
+        jumpThroughBlock.setExceptionHandler(exceptionHandler);
+        return jumpThroughBlock;
+    }
+
+    /**
+     * Creates a new basic block, without registering it in a {@link FunctionAndBlockManager}.
+     */
+    private static BasicBlock makeUnregisteredBlock(Function function) {
+        return new BasicBlock(function);
     }
 
     /**
@@ -389,13 +367,13 @@ public class FunctionBuilderHelper {
     public static Pair<String, String> parseRegExpLiteral(LiteralToken token) {
         String rawRegex = token.value;
         int lastSlash = rawRegex.lastIndexOf('/');
-        String pattern = rawRegex.substring(1, lastSlash);
         final String flags;
         if (lastSlash < rawRegex.length()) {
             flags = rawRegex.substring(lastSlash + 1);
         } else {
             flags = "";
         }
+        String pattern = rawRegex.substring(1, lastSlash);
         return Pair.make(pattern, flags);
     }
 
@@ -462,10 +440,11 @@ public class FunctionBuilderHelper {
      * Creates the initial basic blocks and nodes for a function.
      */
     public static AstEnv setupFunction(Function fun, AstEnv env, FunctionAndBlockManager functionAndBlocksManager) {
-        BasicBlock entry = makeBasicBlock(fun, null, functionAndBlocksManager);
-        BasicBlock body = makeSuccessorBasicBlock(fun, entry, functionAndBlocksManager);
-        BasicBlock retBB = makeBasicBlock(fun, null, functionAndBlocksManager);
-        BasicBlock exceptionretBB = makeBasicBlock(fun, null, functionAndBlocksManager);
+        BasicBlock entry = makeBasicBlock(fun, functionAndBlocksManager);
+        BasicBlock body = makeBasicBlock(fun, functionAndBlocksManager);
+        BasicBlock retBB = makeBasicBlock(fun, functionAndBlocksManager);
+        BasicBlock exceptionretBB = makeBasicBlock(fun, functionAndBlocksManager);
+        entry.addSuccessor(body);
         body.setExceptionHandler(exceptionretBB);
         fun.setEntry(entry);
         fun.setExceptionalExit(exceptionretBB);
@@ -501,45 +480,39 @@ public class FunctionBuilderHelper {
         return tree;
     }
 
-    /**
-     * Special TAJS directives.
-     * Directives are constant strings that appear as expression statements in the JavaScript code.
-     */
-    public enum Directive {
-
-        NO_FLOW("dk.brics.tajs.directives.unreachable");
-
-        private final String name;
-
-        Directive(String name) {
-            this.name = name;
-        }
-
-        @Override
-        public String toString() {
-            return name;
-        }
-
-        /**
-         * Returns the name of the directive.
-         */
-        String getName() {
-            return name;
+    public static boolean isLoopStatement(ParseTree statement) {
+        switch (statement.type) {
+            case FOR_IN_STATEMENT:
+            case FOR_OF_STATEMENT:
+            case FOR_STATEMENT:
+            case WHILE_STATEMENT:
+            case DO_WHILE_STATEMENT:
+                return true;
+            default:
+                return false;
         }
     }
 
     /**
-     * Exception for features that are not yet implemented.
+     * Look for 'use strict'; in the body
      */
-    public static class NotImplemented extends AnalysisException {
-
-        private static final long serialVersionUID = 1L;
-
-        /**
-         * Constructs a new exception.
-         */
-        NotImplemented(ParseTree tree, String feature) {
-            super(makeSourceLocation(tree) + ": '" + feature + "'-support not implemented yet!");
+    public static boolean startsWithUseStrictDirective(ParseTree tree) {
+        if (tree.type == ParseTreeType.BLOCK) {
+            BlockTree block = tree.asBlock();
+            if (block.statements.isEmpty()) {
+                return false;
+            }
+            ParseTree firstStatement = block.statements.get(0);
+            if (firstStatement.type == ParseTreeType.EXPRESSION_STATEMENT) {
+                firstStatement = firstStatement.asExpressionStatement().expression;
+                if (firstStatement.type == ParseTreeType.LITERAL_EXPRESSION
+                        && firstStatement.asLiteralExpression().literalToken.type == TokenType.STRING
+                        ) {
+                    String directiveString = ClosureASTUtil.normalizeString(firstStatement.asLiteralExpression().literalToken.asLiteral());
+                    return "use strict".equals(directiveString);
+                }
+            }
         }
+        return false;
     }
 }

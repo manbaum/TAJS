@@ -1,21 +1,30 @@
+/*
+ * Copyright 2009-2019 Aarhus University
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package dk.brics.tajs.js2flowgraph;
 
-import com.google.javascript.jscomp.parsing.Config;
-import com.google.javascript.jscomp.parsing.Config.LanguageMode;
-import com.google.javascript.jscomp.parsing.ConfigExposer;
-import com.google.javascript.jscomp.parsing.ParserRunner;
 import com.google.javascript.jscomp.parsing.parser.Parser;
 import com.google.javascript.jscomp.parsing.parser.Parser.Config.Mode;
 import com.google.javascript.jscomp.parsing.parser.SourceFile;
 import com.google.javascript.jscomp.parsing.parser.trees.ProgramTree;
-import com.google.javascript.jscomp.parsing.parser.util.MutedErrorReporter;
-import com.google.javascript.rhino.head.ErrorReporter;
-import com.google.javascript.rhino.head.EvaluatorException;
+import com.google.javascript.jscomp.parsing.parser.util.ErrorReporter;
+import com.google.javascript.jscomp.parsing.parser.util.SourcePosition;
 import dk.brics.tajs.flowgraph.SourceLocation;
-import dk.brics.tajs.util.AnalysisException;
-import dk.brics.tajs.util.Collections;
+import dk.brics.tajs.flowgraph.SourceLocation.SourceLocationMaker;
 
-import java.io.IOException;
 import java.util.List;
 
 import static dk.brics.tajs.util.Collections.newList;
@@ -24,76 +33,47 @@ import static dk.brics.tajs.util.Collections.newList;
  * JavaScript parser.
  * Based on the parser from the Google Closure Compiler.
  */
-class JavaScriptParser {
-
-    // Logger is *not* the log4j logger used elsewhere in TAJS, it is used by the ParserRunner
-    private static java.util.logging.Logger parserLogger = java.util.logging.Logger.getAnonymousLogger();
+public class JavaScriptParser {
 
     private final Mode mode;
 
-    private final Config config;
+    private final boolean strict;
 
     /**
      * Constructs a new parser.
      */
-    JavaScriptParser(Mode languageMode) {
+    public JavaScriptParser(Mode languageMode, boolean strict) {
         mode = languageMode;
-        LanguageMode m;
-        switch (mode) {
-            case ES3:
-                m = LanguageMode.ECMASCRIPT3;
-                break;
-            case ES5:
-                m = LanguageMode.ECMASCRIPT5;
-                break;
-            case ES5_STRICT:
-                m = LanguageMode.ECMASCRIPT5_STRICT;
-                break;
-            case ES6:
-                m = LanguageMode.ECMASCRIPT6;
-                break;
-            case ES6_STRICT:
-                m = LanguageMode.ECMASCRIPT6_STRICT;
-                break;
-            default:
-                throw new AnalysisException("Unexpected enum: " + mode);
-        }
-        config = ConfigExposer.createConfig(Collections.<String>newSet(), Collections.<String>newSet(), true, m, false);
+        this.strict = strict;
     }
 
     /**
      * Parses the given JavaScript code.
      * The syntax check includes break/continue label consistency and no duplicate parameters.
      *
-     * @param name     file name or URL of the code
      * @param contents the code
      */
-    ParseResult parse(String name, String contents) {
+    public ParseResult parse(String contents, SourceLocationMaker sourceLocationMaker) {
         final List<SyntaxMesssage> warnings = newList();
         final List<SyntaxMesssage> errors = newList();
-        try {
-            ParserRunner.parse(new com.google.javascript.jscomp.SourceFile(name), contents, config, new ErrorReporter() {
-                @Override
-                public void warning(String message, String name2, int lineNumber, String UNKNOWN_PURPOSE_PARAMETER, int columnNumber) {
-                    warnings.add(new SyntaxMesssage(message, new SourceLocation(lineNumber, columnNumber + 1, name2)));
-                }
 
-                @Override
-                public void error(String message, String name2, int lineNumber, String UNKNOWN_PURPOSE_PARAMETER, int columnNumber) {
-                    errors.add(new SyntaxMesssage(message, new SourceLocation(lineNumber, columnNumber + 1, name2)));
-                }
+        ErrorReporter errorReporter = new ErrorReporter() {
+            @Override
+            protected void reportError(SourcePosition sourcePosition, String message) {
+                errors.add(new SyntaxMesssage(message, sourceLocationMaker.make(sourcePosition.line, sourcePosition.column + 1, sourcePosition.line, sourcePosition.column + 1)));
+            }
 
-                @Override
-                public EvaluatorException runtimeError(String s, String s2, int i, String s3, int i2) {
-                    throw new AnalysisException("Runtime error in parser");
-                }
-            }, parserLogger);
-        } catch (IOException e) {
-            errors.add(new SyntaxMesssage(String.format("%s: %s", e.getClass(), e.getMessage()), new SourceLocation(-1, -1, name)));
-        }
+            @Override
+            protected void reportWarning(SourcePosition sourcePosition, String message) {
+                warnings.add(new SyntaxMesssage(message, sourceLocationMaker.make(sourcePosition.line, sourcePosition.column + 1, sourcePosition.line, sourcePosition.column + 1)));
+            }
+        };
+
         ProgramTree programAST = null;
-        if (errors.isEmpty()) {
-            programAST = new Parser(new Parser.Config(mode), new MutedErrorReporter(), new SourceFile(name, contents)).parseProgram();
+        try {
+            programAST = new Parser(new Parser.Config(mode, strict), errorReporter, new SourceFile(sourceLocationMaker.makeUnspecifiedPosition().toString(), contents)).parseProgram();
+        } catch (Exception e) {
+            errors.add(new SyntaxMesssage(String.format("%s: %s", e.getClass(), e.getMessage()), sourceLocationMaker.makeUnspecifiedPosition()));
         }
         return new ParseResult(programAST, errors, warnings);
     }
@@ -133,13 +113,13 @@ class JavaScriptParser {
     /**
      * Result from parser.
      */
-    static class ParseResult {
-
-        private ProgramTree programAST;
+    public static class ParseResult {
 
         private final List<SyntaxMesssage> errors;
 
         private final List<SyntaxMesssage> warnings;
+
+        private ProgramTree programAST;
 
         private ParseResult(ProgramTree programAST, List<SyntaxMesssage> errors, List<SyntaxMesssage> warnings) {
             this.programAST = programAST;
@@ -150,7 +130,7 @@ class JavaScriptParser {
         /**
          * Returns the AST, or null if parse error.
          */
-        ProgramTree getProgramAST() {
+        public ProgramTree getProgramAST() {
             return programAST;
         }
 

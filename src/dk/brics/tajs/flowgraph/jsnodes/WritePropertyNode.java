@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,9 +27,17 @@ import dk.brics.tajs.util.AnalysisException;
  * or<br>
  * <i>v</i><sub><i>base</i></sub>.<i>property</i> = <i>v</i><br>
  * <p>
+ * Also used for defining object literal properties and ES5 getters and setters.
+ * <p>
  * Note that reading a property may overwrite the base register due to ToObject coercion.
  */
 public class WritePropertyNode extends Node {
+
+    public enum Kind {
+        GETTER,
+        SETTER,
+        ORDINARY
+    }
 
     private int base_reg;
 
@@ -39,19 +47,26 @@ public class WritePropertyNode extends Node {
 
     private int value_reg;
 
+    private final Kind kind;
+
+    private boolean decl;
+
     /**
      * Constructs a new write property node with variable property name.
      *
      * @param base_reg     The register for the base value.
      * @param property_reg The register for the property value.
      * @param value_reg    The register for the value to write.
+     * @param decl         If set, this operation comes from an object literal property declaration.
      * @param location     The source location.
      */
-    public WritePropertyNode(int base_reg, int property_reg, int value_reg, SourceLocation location) {
+    public WritePropertyNode(int base_reg, int property_reg, int value_reg, boolean decl, SourceLocation location) {
         super(location);
         this.base_reg = base_reg;
         this.property_reg = property_reg;
         this.value_reg = value_reg;
+        this.decl = decl;
+        this.kind = Kind.ORDINARY;
     }
 
     /**
@@ -60,13 +75,17 @@ public class WritePropertyNode extends Node {
      * @param base_reg     The register for the base value.
      * @param property_str The property string.
      * @param value_reg    The register holding the value to write.
+     * @param kind         The kind of property being written.
+     * @param decl         If set, this operation comes from an object literal property declaration.
      * @param location     The source location.
      */
-    public WritePropertyNode(int base_reg, String property_str, int value_reg, SourceLocation location) {
+    public WritePropertyNode(int base_reg, String property_str, int value_reg, Kind kind, boolean decl, SourceLocation location) {
         super(location);
         this.base_reg = base_reg;
         this.property_str = property_str;
         this.value_reg = value_reg;
+        this.decl = decl;
+        this.kind = kind;
     }
 
     /**
@@ -127,7 +146,7 @@ public class WritePropertyNode extends Node {
 
     @Override
     public String toString() {
-        return "write-property[v" + base_reg
+        return "write-property" + (kind == Kind.GETTER ? "-getter" : kind == Kind.SETTER ? "-setter" : "") + "[v" + base_reg
                 + (property_str != null ? ",'" + property_str + "'" : ",v" + property_reg)
                 + ",v" + value_reg + "]";
     }
@@ -145,10 +164,24 @@ public class WritePropertyNode extends Node {
     @Override
     public void check(BasicBlock b) {
         if (base_reg == NO_VALUE)
-            throw new AnalysisException("Base register is NO_VALUE:" + toString());
+            throw new AnalysisException("Base register is NO_VALUE:" + this);
         if (property_reg == NO_VALUE && property_str == null)
-            throw new AnalysisException("Both property register and property string are undefined: " + toString());
+            throw new AnalysisException("Both property register and property string are undefined: " + this);
         if (value_reg == NO_VALUE)
-            throw new AnalysisException("No real destination for write property node: " + toString());
+            throw new AnalysisException("No real destination for write property node: " + this);
+    }
+
+    /**
+     * Returns the kind.
+     */
+    public Kind getKind() {
+        return kind;
+    }
+
+    /**
+     * Returns true if this node comes from a property declaration in an object literal.
+     */
+    public boolean isDecl() {
+        return decl;
     }
 }

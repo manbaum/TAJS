@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,9 +19,9 @@ package dk.brics.tajs.analysis.dom.ajax;
 import dk.brics.tajs.analysis.Conversion;
 import dk.brics.tajs.analysis.FunctionCalls;
 import dk.brics.tajs.analysis.InitialStateBuilder;
-import dk.brics.tajs.analysis.NativeFunctions;
 import dk.brics.tajs.analysis.PropVarOperations;
 import dk.brics.tajs.analysis.Solver;
+import dk.brics.tajs.analysis.dom.DOMFunctions;
 import dk.brics.tajs.analysis.dom.DOMObjects;
 import dk.brics.tajs.analysis.dom.DOMWindow;
 import dk.brics.tajs.lattice.ObjectLabel;
@@ -47,9 +47,9 @@ public class XmlHttpRequest {
     public static void build(Solver.SolverInterface c) {
         State s = c.getState();
         PropVarOperations pv = c.getAnalysis().getPropVarOperations();
-        CONSTRUCTOR = new ObjectLabel(DOMObjects.XML_HTTP_REQUEST_CONSTRUCTOR, ObjectLabel.Kind.FUNCTION);
-        PROTOTYPE = new ObjectLabel(DOMObjects.XML_HTTP_REQUEST_PROTOTYPE, ObjectLabel.Kind.OBJECT);
-        INSTANCES = new ObjectLabel(DOMObjects.XML_HTTP_REQUEST_INSTANCES, ObjectLabel.Kind.OBJECT);
+        CONSTRUCTOR = ObjectLabel.make(DOMObjects.XML_HTTP_REQUEST_CONSTRUCTOR, ObjectLabel.Kind.FUNCTION);
+        PROTOTYPE = ObjectLabel.make(DOMObjects.XML_HTTP_REQUEST_PROTOTYPE, ObjectLabel.Kind.OBJECT);
+        INSTANCES = ObjectLabel.make(DOMObjects.XML_HTTP_REQUEST_INSTANCES, ObjectLabel.Kind.OBJECT);
 
         // Constructor Object
         s.newObject(CONSTRUCTOR);
@@ -69,15 +69,26 @@ public class XmlHttpRequest {
         /*
          * Constants.
          */
-        createDOMProperty(PROTOTYPE, "UNSENT", Value.makeNum(0), c);
-        createDOMProperty(PROTOTYPE, "OPENED", Value.makeNum(1), c);
-        createDOMProperty(PROTOTYPE, "HEADERS_RECEIVED", Value.makeNum(2), c);
-        createDOMProperty(PROTOTYPE, "LOADING", Value.makeNum(3), c);
-        createDOMProperty(PROTOTYPE, "DONE", Value.makeNum(4), c);
+        for(ObjectLabel WHERE : new ObjectLabel[]{PROTOTYPE, CONSTRUCTOR}) {
+            createDOMProperty(WHERE, "UNSENT", Value.makeNum(0), c);
+            createDOMProperty(WHERE, "OPENED", Value.makeNum(1), c);
+            createDOMProperty(WHERE, "HEADERS_RECEIVED", Value.makeNum(2), c);
+            createDOMProperty(WHERE, "LOADING", Value.makeNum(3), c);
+            createDOMProperty(WHERE, "DONE", Value.makeNum(4), c);
+        }
 
         /*
          * Properties.
          */
+        createDOMProperty(INSTANCES, "onabort", Value.makeNull(), c);
+        createDOMProperty(INSTANCES, "onerror", Value.makeNull(), c);
+        createDOMProperty(INSTANCES, "onload", Value.makeNull(), c);
+        createDOMProperty(INSTANCES, "onloadstart", Value.makeNull(), c);
+        createDOMProperty(INSTANCES, "onloadend", Value.makeNull(), c);
+        createDOMProperty(INSTANCES, "onprogress", Value.makeNull(), c);
+        createDOMProperty(INSTANCES, "onreadystatechange", Value.makeNull(), c);
+        createDOMProperty(INSTANCES, "ontimeout", Value.makeNull(), c);
+
         createDOMProperty(INSTANCES, "readyState", Value.makeAnyNumUInt().setReadOnly(), c);
         createDOMProperty(INSTANCES, "status", Value.makeAnyNumUInt().setReadOnly(), c);
         createDOMProperty(INSTANCES, "statusText", Value.makeAnyStr().setReadOnly(), c);
@@ -102,6 +113,7 @@ public class XmlHttpRequest {
         // Multiply object
         s.multiplyObject(INSTANCES);
         INSTANCES = INSTANCES.makeSingleton().makeSummary();
+        createDOMProperty(INSTANCES, "withCredentials", Value.makeAnyBool().setReadOnly(), c);
     }
 
     /*
@@ -112,42 +124,42 @@ public class XmlHttpRequest {
         State s = c.getState();
         switch (nativeObject) {
             case XML_HTTP_REQUEST_OPEN: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 2, 5);
+                DOMFunctions.expectParameters(nativeObject, call, c, 2, 5);
                 /* Value method =*/
-                Conversion.toString(NativeFunctions.readParameter(call, s, 0), c);
+                Conversion.toString(FunctionCalls.readParameter(call, s, 0), c);
                 /* Value url =*/
-                Conversion.toString(NativeFunctions.readParameter(call, s, 1), c);
+                Conversion.toString(FunctionCalls.readParameter(call, s, 1), c);
                 return Value.makeUndef();
             }
 
             case XML_HTTP_REQUEST_SET_REQUEST_HEADER: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 2, 2);
+                DOMFunctions.expectParameters(nativeObject, call, c, 2, 2);
                 /* Value header =*/
-                Conversion.toString(NativeFunctions.readParameter(call, s, 0), c);
+                Conversion.toString(FunctionCalls.readParameter(call, s, 0), c);
                 /* Value value =*/
-                Conversion.toString(NativeFunctions.readParameter(call, s, 1), c);
+                Conversion.toString(FunctionCalls.readParameter(call, s, 1), c);
                 return Value.makeUndef();
             }
 
             case XML_HTTP_REQUEST_SEND: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 0, 1);
+                DOMFunctions.expectParameters(nativeObject, call, c, 0, 1);
                 return Value.makeUndef();
             }
 
             case XML_HTTP_REQUEST_ABORT: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 0, 0);
+                DOMFunctions.expectParameters(nativeObject, call, c, 0, 0);
                 return Value.makeUndef();
             }
 
             case XML_HTTP_REQUEST_GET_RESPONSE_HEADER: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 1, 1);
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 1);
                 /* Value header =*/
-                Conversion.toString(NativeFunctions.readParameter(call, s, 0), c);
+                Conversion.toString(FunctionCalls.readParameter(call, s, 0), c);
                 return Value.makeAnyStr();
             }
 
             case XML_HTTP_REQUEST_GET_ALL_RESPONSE_HEADERS: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 0, 0);
+                DOMFunctions.expectParameters(nativeObject, call, c, 0, 0);
                 return Value.makeAnyStr();
             }
 

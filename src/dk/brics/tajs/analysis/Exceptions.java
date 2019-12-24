@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,12 +18,15 @@ package dk.brics.tajs.analysis;
 
 import dk.brics.tajs.flowgraph.AbstractNode;
 import dk.brics.tajs.flowgraph.BasicBlock;
+import dk.brics.tajs.lattice.ExecutionContext;
 import dk.brics.tajs.lattice.ObjectLabel;
 import dk.brics.tajs.lattice.ObjectLabel.Kind;
 import dk.brics.tajs.lattice.State;
 import dk.brics.tajs.lattice.Value;
 import dk.brics.tajs.options.Options;
 import dk.brics.tajs.util.AnalysisException;
+
+import static dk.brics.tajs.util.Collections.newSet;
 
 /**
  * Models exceptions.
@@ -39,13 +42,12 @@ public class Exceptions {
      * Don't forget to set the ordinary state to none if the exception will definitely occur.
      */
     public static void throwTypeError(Solver.SolverInterface c) {
-        if (Options.get().isExceptionsDisabled())
+        if (Options.get().getUnsoundness().isNoExceptions()) {
+            c.getAnalysis().getUnsoundness().ignoringException(c.getNode(), "TypeError");
             return;
-        State newstate = c.getState().clone();
-        State oldstate = c.getState();
-        c.setState(newstate);
-        throwException(newstate, makeException(InitialStateBuilder.TYPE_ERROR_PROTOTYPE, c), c, c.getNode());
-        c.setState(oldstate);
+        }
+        c.withState(c.getState().clone(), () ->
+                throwException(c.getState(), makeException(InitialStateBuilder.TYPE_ERROR_PROTOTYPE, c), c, c.getNode()));
     }
 
     /**
@@ -53,14 +55,13 @@ public class Exceptions {
      * Does not modify the current state.
      * Don't forget to set the ordinary state to none if the exception will definitely occur.
      */
-    public static void throwReferenceError(Solver.SolverInterface c) {
-        if (Options.get().isExceptionsDisabled())
+    public static void throwReferenceError(Solver.SolverInterface c, boolean maybe) {
+        if (maybe && Options.get().getUnsoundness().isNoExceptions()) {
+            c.getAnalysis().getUnsoundness().ignoringException(c.getNode(), "ReferenceError");
             return;
-        State newstate = c.getState().clone();
-        State oldstate = c.getState();
-        c.setState(newstate);
-        throwException(newstate, makeException(InitialStateBuilder.REFERENCE_ERROR_PROTOTYPE, c), c, c.getNode());
-        c.setState(oldstate);
+        }
+        c.withState(c.getState().clone(), () ->
+                throwException(c.getState(), makeException(InitialStateBuilder.REFERENCE_ERROR_PROTOTYPE, c), c, c.getNode()));
     }
 
     /**
@@ -68,14 +69,13 @@ public class Exceptions {
      * Does not modify the current state.
      * Don't forget to set the ordinary state to none if the exception will definitely occur.
      */
-    public static void throwRangeError(Solver.SolverInterface c) {
-        if (Options.get().isExceptionsDisabled())
+    public static void throwRangeError(Solver.SolverInterface c, boolean maybe) {
+        if (maybe && Options.get().getUnsoundness().isNoExceptions()) {
+            c.getAnalysis().getUnsoundness().ignoringException(c.getNode(), "RangeError");
             return;
-        State newstate = c.getState().clone();
-        State oldstate = c.getState();
-        c.setState(newstate);
-        throwException(newstate, makeException(InitialStateBuilder.RANGE_ERROR_PROTOTYPE, c), c, c.getNode());
-        c.setState(oldstate);
+        }
+        c.withState(c.getState().clone(), () ->
+                throwException(c.getState(), makeException(InitialStateBuilder.RANGE_ERROR_PROTOTYPE, c), c, c.getNode()));
     }
 
     /**
@@ -83,14 +83,13 @@ public class Exceptions {
      * Does not modify the current state.
      * Don't forget to set the ordinary state to none if the exception will definitely occur.
      */
-    public static void throwSyntaxError(Solver.SolverInterface c) {
-        if (Options.get().isExceptionsDisabled())
+    public static void throwSyntaxError(Solver.SolverInterface c, boolean maybe) {
+        if (maybe && Options.get().getUnsoundness().isNoExceptions()) {
+            c.getAnalysis().getUnsoundness().ignoringException(c.getNode(), "SyntaxError");
             return;
-        State newstate = c.getState().clone();
-        State oldstate = c.getState();
-        c.setState(newstate);
-        throwException(newstate, makeException(InitialStateBuilder.SYNTAX_ERROR_PROTOTYPE, c), c, c.getNode());
-        c.setState(oldstate);
+        }
+        c.withState(c.getState().clone(), () ->
+                throwException(c.getState(), makeException(InitialStateBuilder.SYNTAX_ERROR_PROTOTYPE, c), c, c.getNode()));
     }
 
     /**
@@ -98,7 +97,7 @@ public class Exceptions {
      * Does not modify the given state.
      */
     private static Value makeException(ObjectLabel prototype, Solver.SolverInterface c) {
-        ObjectLabel ex = new ObjectLabel(c.getNode(), Kind.ERROR);
+        ObjectLabel ex = ObjectLabel.make(c.getNode(), Kind.ERROR);
         c.getState().newObject(ex);
         c.getState().writeInternalPrototype(ex, Value.makeObject(prototype));
         c.getAnalysis().getPropVarOperations().writeProperty(ex, "message", Value.makeAnyStr());
@@ -116,6 +115,10 @@ public class Exceptions {
         if (v.isMaybePresent() || Options.get().isPropagateDeadFlow()) {
             BasicBlock handlerblock = source.getBlock().getExceptionHandler();
             state.writeRegister(AbstractNode.EXCEPTION_REG, v);
+            state.setExecutionContext(
+                    new ExecutionContext(state.getExecutionContext().getScopeChain(),
+                            newSet(state.getExecutionContext().getVariableObject()),
+                            c.getAnalysisLatticeElement().getState(source.getBlock(), state.getContext()).readThis())); // 'this' may have been changed via call/apply, so restore from the block entry
             c.propagateToBasicBlock(state, handlerblock, state.getContext());
         }
     }

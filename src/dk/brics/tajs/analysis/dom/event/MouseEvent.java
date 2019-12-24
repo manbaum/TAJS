@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,17 +18,20 @@ package dk.brics.tajs.analysis.dom.event;
 
 import dk.brics.tajs.analysis.Conversion;
 import dk.brics.tajs.analysis.FunctionCalls;
-import dk.brics.tajs.analysis.NativeFunctions;
 import dk.brics.tajs.analysis.Solver;
 import dk.brics.tajs.analysis.dom.DOMConversion;
+import dk.brics.tajs.analysis.dom.DOMFunctions;
 import dk.brics.tajs.analysis.dom.DOMObjects;
 import dk.brics.tajs.analysis.dom.DOMRegistry;
 import dk.brics.tajs.lattice.ObjectLabel;
 import dk.brics.tajs.lattice.State;
 import dk.brics.tajs.lattice.Value;
 
+import java.util.Set;
+
 import static dk.brics.tajs.analysis.dom.DOMFunctions.createDOMFunction;
 import static dk.brics.tajs.analysis.dom.DOMFunctions.createDOMProperty;
+import static dk.brics.tajs.util.Collections.newSet;
 
 /**
  * The MouseEvent interface provides specific contextual information associated
@@ -42,8 +45,8 @@ public class MouseEvent {
 
     public static void build(Solver.SolverInterface c) {
         State s = c.getState();
-        PROTOTYPE = new ObjectLabel(DOMObjects.MOUSE_EVENT_PROTOTYPE, ObjectLabel.Kind.OBJECT);
-        INSTANCES = new ObjectLabel(DOMObjects.MOUSE_EVENT_INSTANCES, ObjectLabel.Kind.OBJECT);
+        PROTOTYPE = ObjectLabel.make(DOMObjects.MOUSE_EVENT_PROTOTYPE, ObjectLabel.Kind.OBJECT);
+        INSTANCES = ObjectLabel.make(DOMObjects.MOUSE_EVENT_INSTANCES, ObjectLabel.Kind.OBJECT);
 
         // Prototype object
         s.newObject(PROTOTYPE);
@@ -56,8 +59,18 @@ public class MouseEvent {
         /*
          * Properties.
          */
+        Set<String> mouseEventTypes = newSet();
+        mouseEventTypes.add("click");
+        mouseEventTypes.add("dblclick");
+        mouseEventTypes.add("mousedown");
+        mouseEventTypes.add("mouseup");
+        mouseEventTypes.add("mousemove");
+        mouseEventTypes.add("mouseout");
+
         createDOMProperty(INSTANCES, "screenX", Value.makeAnyNum().setReadOnly(), c);
         createDOMProperty(INSTANCES, "screenY", Value.makeAnyNum().setReadOnly(), c);
+        createDOMProperty(INSTANCES, "pageX", Value.makeAnyNum().setReadOnly(), c);
+        createDOMProperty(INSTANCES, "pageY", Value.makeAnyNum().setReadOnly(), c);
         createDOMProperty(INSTANCES, "clientX", Value.makeAnyNum().setReadOnly(), c);
         createDOMProperty(INSTANCES, "clientY", Value.makeAnyNum().setReadOnly(), c);
         createDOMProperty(INSTANCES, "ctrlKey", Value.makeAnyBool().setReadOnly(), c);
@@ -65,12 +78,15 @@ public class MouseEvent {
         createDOMProperty(INSTANCES, "altKey", Value.makeAnyBool().setReadOnly(), c);
         createDOMProperty(INSTANCES, "metaKey", Value.makeAnyBool().setReadOnly(), c);
         createDOMProperty(INSTANCES, "button", Value.makeAnyNumUInt().setReadOnly(), c);
+        createDOMProperty(INSTANCES, "type", Value.makeStrings(mouseEventTypes).setReadOnly(), c);
 
         // DOM Level 0
         createDOMProperty(INSTANCES, "offsetX", Value.makeAnyNum().setReadOnly(), c);
         createDOMProperty(INSTANCES, "offsetY", Value.makeAnyNum().setReadOnly(), c);
         createDOMProperty(INSTANCES, "layerX", Value.makeAnyNum().setReadOnly(), c);
         createDOMProperty(INSTANCES, "layerY", Value.makeAnyNum().setReadOnly(), c);
+
+        createDOMProperty(INSTANCES, "which", Value.makeAnyNumUInt().joinAbsent(), c);
 
         /*
         * Functions.
@@ -89,36 +105,36 @@ public class MouseEvent {
         State s = c.getState();
         switch (nativeObject) {
             case MOUSE_EVENT_INIT_MOUSE_EVENT: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 15, 15);
+                DOMFunctions.expectParameters(nativeObject, call, c, 15, 15);
                 /* Value typeArg =*/
-                Conversion.toString(NativeFunctions.readParameter(call, s, 0), c);
+                Conversion.toString(FunctionCalls.readParameter(call, s, 0), c);
                 /* Value canBubbleArg =*/
-                Conversion.toBoolean(NativeFunctions.readParameter(call, s, 1));
+                Conversion.toBoolean(FunctionCalls.readParameter(call, s, 1));
                 /* Value cancelableArg =*/
-                Conversion.toBoolean(NativeFunctions.readParameter(call, s, 2));
+                Conversion.toBoolean(FunctionCalls.readParameter(call, s, 2));
                 // View arg not checked
                 /* Value detailArg =*/
-                Conversion.toNumber(NativeFunctions.readParameter(call, s, 4), c);
+                Conversion.toNumber(FunctionCalls.readParameter(call, s, 4), c);
                 /* Value screenXArg =*/
-                Conversion.toNumber(NativeFunctions.readParameter(call, s, 5), c);
+                Conversion.toNumber(FunctionCalls.readParameter(call, s, 5), c);
                 /* Value screenYArg =*/
-                Conversion.toNumber(NativeFunctions.readParameter(call, s, 6), c);
+                Conversion.toNumber(FunctionCalls.readParameter(call, s, 6), c);
                 /* Value clientXArg =*/
-                Conversion.toNumber(NativeFunctions.readParameter(call, s, 7), c);
+                Conversion.toNumber(FunctionCalls.readParameter(call, s, 7), c);
                 /* Value clientYArg =*/
-                Conversion.toNumber(NativeFunctions.readParameter(call, s, 8), c);
+                Conversion.toNumber(FunctionCalls.readParameter(call, s, 8), c);
                 /* Value ctrlKeyArg =*/
-                Conversion.toBoolean(NativeFunctions.readParameter(call, s, 9));
+                Conversion.toBoolean(FunctionCalls.readParameter(call, s, 9));
                 /* Value altKeyArg =*/
-                Conversion.toBoolean(NativeFunctions.readParameter(call, s, 10));
+                Conversion.toBoolean(FunctionCalls.readParameter(call, s, 10));
                 /* Value shiftKeyArg =*/
-                Conversion.toBoolean(NativeFunctions.readParameter(call, s, 11));
+                Conversion.toBoolean(FunctionCalls.readParameter(call, s, 11));
                 /* Value metaKeyArg =*/
-                Conversion.toBoolean(NativeFunctions.readParameter(call, s, 12));
+                Conversion.toBoolean(FunctionCalls.readParameter(call, s, 12));
                 /* Value buttonArg =*/
-                Conversion.toNumber(NativeFunctions.readParameter(call, s, 13), c);
+                Conversion.toNumber(FunctionCalls.readParameter(call, s, 13), c);
                 /* Value relatedTargetArg =*/
-                DOMConversion.toEventTarget(NativeFunctions.readParameter(call, s, 14), c);
+                DOMConversion.toEventTarget(FunctionCalls.readParameter(call, s, 14), c);
                 return Value.makeUndef();
             }
             default:

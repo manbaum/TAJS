@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,17 +19,21 @@ package dk.brics.tajs.analysis.dom.core;
 import dk.brics.tajs.analysis.Conversion;
 import dk.brics.tajs.analysis.FunctionCalls;
 import dk.brics.tajs.analysis.InitialStateBuilder;
-import dk.brics.tajs.analysis.NativeFunctions;
 import dk.brics.tajs.analysis.PropVarOperations;
 import dk.brics.tajs.analysis.Solver;
 import dk.brics.tajs.analysis.dom.DOMBuilder;
 import dk.brics.tajs.analysis.dom.DOMConversion;
+import dk.brics.tajs.analysis.dom.DOMFunctions;
 import dk.brics.tajs.analysis.dom.DOMObjects;
 import dk.brics.tajs.analysis.dom.DOMWindow;
 import dk.brics.tajs.lattice.ObjectLabel;
 import dk.brics.tajs.lattice.State;
 import dk.brics.tajs.lattice.Value;
 import dk.brics.tajs.util.AnalysisException;
+import dk.brics.tajs.util.Collectors;
+
+import java.util.Arrays;
+import java.util.List;
 
 import static dk.brics.tajs.analysis.dom.DOMFunctions.createDOMFunction;
 import static dk.brics.tajs.analysis.dom.DOMFunctions.createDOMProperty;
@@ -49,15 +53,15 @@ public class DOMNode {
     public static void build(Solver.SolverInterface c) {
         State s = c.getState();
         PropVarOperations pv = c.getAnalysis().getPropVarOperations();
-        CONSTRUCTOR = new ObjectLabel(DOMObjects.NODE_CONSTRUCTOR, ObjectLabel.Kind.FUNCTION);
-        PROTOTYPE = new ObjectLabel(DOMObjects.NODE_PROTOTYPE, ObjectLabel.Kind.OBJECT);
-        INSTANCES = new ObjectLabel(DOMObjects.NODE_INSTANCES, ObjectLabel.Kind.OBJECT);
+        CONSTRUCTOR = ObjectLabel.make(DOMObjects.NODE_CONSTRUCTOR, ObjectLabel.Kind.FUNCTION);
+        PROTOTYPE = ObjectLabel.make(DOMObjects.NODE_PROTOTYPE, ObjectLabel.Kind.OBJECT);
+        INSTANCES = ObjectLabel.make(DOMObjects.NODE_INSTANCES, ObjectLabel.Kind.OBJECT);
 
         // Constructor Object
         s.newObject(CONSTRUCTOR);
         pv.writePropertyWithAttributes(CONSTRUCTOR, "length", Value.makeNum(0).setAttributes(true, true, true));
         pv.writePropertyWithAttributes(CONSTRUCTOR, "prototype", Value.makeObject(PROTOTYPE).setAttributes(true, true, true));
-        s.writeInternalPrototype(CONSTRUCTOR, Value.makeObject(InitialStateBuilder.OBJECT_PROTOTYPE));
+        s.writeInternalPrototype(CONSTRUCTOR, Value.makeObject(InitialStateBuilder.FUNCTION_PROTOTYPE));
         pv.writeProperty(DOMWindow.WINDOW, "Node", Value.makeObject(CONSTRUCTOR));
 
         // Prototype object.
@@ -71,6 +75,26 @@ public class DOMNode {
         /*
          * Constants.
          */
+        createDOMProperty(CONSTRUCTOR, "ELEMENT_NODE", Value.makeNum(1).setReadOnly(), c);
+        createDOMProperty(CONSTRUCTOR, "ATTRIBUTE_NODE", Value.makeNum(2).setReadOnly(), c);
+        createDOMProperty(CONSTRUCTOR, "TEXT_NODE", Value.makeNum(3).setReadOnly(), c);
+        createDOMProperty(CONSTRUCTOR, "CDATA_SECTION_NODE", Value.makeNum(4).setReadOnly(), c);
+        createDOMProperty(CONSTRUCTOR, "ENTITY_REFERENCE_NODE", Value.makeNum(5).setReadOnly(), c);
+        createDOMProperty(CONSTRUCTOR, "ENTITY_NODE", Value.makeNum(6).setReadOnly(), c);
+        createDOMProperty(CONSTRUCTOR, "PROCESSING_INSTRUCTION_NODE", Value.makeNum(7).setReadOnly(), c);
+        createDOMProperty(CONSTRUCTOR, "COMMENT_NODE", Value.makeNum(8).setReadOnly(), c);
+        createDOMProperty(CONSTRUCTOR, "DOCUMENT_NODE", Value.makeNum(9).setReadOnly(), c);
+        createDOMProperty(CONSTRUCTOR, "DOCUMENT_TYPE_NODE", Value.makeNum(10).setReadOnly(), c);
+        createDOMProperty(CONSTRUCTOR, "DOCUMENT_FRAGMENT_NODE", Value.makeNum(11).setReadOnly(), c);
+        createDOMProperty(CONSTRUCTOR, "NOTATION_NODE", Value.makeNum(12).setReadOnly(), c);
+
+        createDOMProperty(CONSTRUCTOR, "DOCUMENT_POSITION_DISCONNECTED", Value.makeNum(1).setReadOnly(), c);
+        createDOMProperty(CONSTRUCTOR, "DOCUMENT_POSITION_PRECEDING", Value.makeNum(2).setReadOnly(), c);
+        createDOMProperty(CONSTRUCTOR, "DOCUMENT_POSITION_FOLLOWING", Value.makeNum(4).setReadOnly(), c);
+        createDOMProperty(CONSTRUCTOR, "DOCUMENT_POSITION_CONTAINS", Value.makeNum(8).setReadOnly(), c);
+        createDOMProperty(CONSTRUCTOR, "DOCUMENT_POSITION_CONTAINED_BY", Value.makeNum(16).setReadOnly(), c);
+        createDOMProperty(CONSTRUCTOR, "DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC" , Value.makeNum(32).setReadOnly(), c);
+
         createDOMProperty(PROTOTYPE, "ELEMENT_NODE", Value.makeNum(1).setReadOnly(), c);
         createDOMProperty(PROTOTYPE, "ATTRIBUTE_NODE", Value.makeNum(2).setReadOnly(), c);
         createDOMProperty(PROTOTYPE, "TEXT_NODE", Value.makeNum(3).setReadOnly(), c);
@@ -90,16 +114,15 @@ public class DOMNode {
         // DOM LEVEL 1
         createDOMProperty(PROTOTYPE, "nodeName", Value.makeAnyStr().setReadOnly(), c);
         createDOMProperty(PROTOTYPE, "nodeValue", Value.makeAnyStr().setReadOnly(), c);
-        createDOMProperty(PROTOTYPE, "nodeType", Value.makeAnyNum().setReadOnly(), c);
-        createDOMProperty(PROTOTYPE, "childNodes", Value.makeObject(DOMNodeList.INSTANCES).setReadOnly(), c);
+        List<Integer> nodeTypes = Arrays.asList(/*NOT ZERO!*/ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12); // See 'Constants' above
+        createDOMProperty(PROTOTYPE, "nodeType", Value.join(nodeTypes.stream().map(Value::makeNum).collect(Collectors.toList())).setReadOnly(), c);
+        createDOMProperty(PROTOTYPE, "childNodes", DOMNodeList.makeNaiveInstance().setReadOnly(), c);
         // NB: 'attributes' and 'ownerDocument' are set in CoreBuilder due to circularity
 
         // DOM LEVEL 2
         createDOMProperty(PROTOTYPE, "prefix", Value.makeAnyStr(), c);
         createDOMProperty(PROTOTYPE, "localName", Value.makeAnyStr(), c);
         createDOMProperty(PROTOTYPE, "namespaceURI", Value.makeAnyStr(), c);
-
-
 
         /*
          * Functions.
@@ -133,63 +156,63 @@ public class DOMNode {
         State s = c.getState();
         switch (nativeObject) {
             case NODE_APPEND_CHILD: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 1, 1);
-                return NativeFunctions.readParameter(call, s, 0);
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 1);
+                return FunctionCalls.readParameter(call, s, 0);
             }
             case NODE_CLONE_NODE: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 1, 1);
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 1);
                 /* Value deep =*/
-                Conversion.toBoolean(NativeFunctions.readParameter(call, s, 0));
+                Conversion.toBoolean(FunctionCalls.readParameter(call, s, 0));
                 return Value.makeObject(DOMBuilder.getAllHtmlObjectLabels());
             }
             case NODE_HAS_CHILD_NODES: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 0, 0);
+                DOMFunctions.expectParameters(nativeObject, call, c, 0, 0);
                 return Value.makeAnyBool();
             }
             case NODE_INSERT_BEFORE: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 2, 2);
+                DOMFunctions.expectParameters(nativeObject, call, c, 2, 2);
                 /* Value newChild =*/
-                DOMConversion.toNode(NativeFunctions.readParameter(call, s, 0), c);
+                DOMConversion.toNode(FunctionCalls.readParameter(call, s, 0), c);
                 /* Value refChild =*/
-                DOMConversion.toNode(NativeFunctions.readParameter(call, s, 1), c);
+                DOMConversion.toNode(FunctionCalls.readParameter(call, s, 1), c);
                 return Value.makeObject(DOMBuilder.getAllHtmlObjectLabels());
             }
             case NODE_REMOVE_CHILD: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 1, 1);
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 1);
                 /*Value oldChild =*/
-                DOMConversion.toNode(NativeFunctions.readParameter(call, s, 0), c);
+                DOMConversion.toNode(FunctionCalls.readParameter(call, s, 0), c);
                 return Value.makeObject(DOMBuilder.getAllHtmlObjectLabels());
             }
             case NODE_REPLACE_CHILD: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 2, 2);
+                DOMFunctions.expectParameters(nativeObject, call, c, 2, 2);
                 /* Value newChild =*/
-                DOMConversion.toNode(NativeFunctions.readParameter(call, s, 0), c);
+                DOMConversion.toNode(FunctionCalls.readParameter(call, s, 0), c);
                 /* Value oldChild =*/
-                DOMConversion.toNode(NativeFunctions.readParameter(call, s, 1), c);
+                DOMConversion.toNode(FunctionCalls.readParameter(call, s, 1), c);
                 return Value.makeObject(DOMBuilder.getAllHtmlObjectLabels());
             }
             case NODE_IS_SUPPORTED: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 2, 2);
+                DOMFunctions.expectParameters(nativeObject, call, c, 2, 2);
                 /* Value feature =*/
-                Conversion.toString(NativeFunctions.readParameter(call, s, 0), c);
+                Conversion.toString(FunctionCalls.readParameter(call, s, 0), c);
                 /* Value version =*/
-                Conversion.toString(NativeFunctions.readParameter(call, s, 1), c);
+                Conversion.toString(FunctionCalls.readParameter(call, s, 1), c);
                 return Value.makeAnyBool();
             }
             case NODE_HAS_ATTRIBUTES: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 0, 0);
+                DOMFunctions.expectParameters(nativeObject, call, c, 0, 0);
                 return Value.makeAnyBool();
             }
             case NODE_NORMALIZE: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 0, 0);
+                DOMFunctions.expectParameters(nativeObject, call, c, 0, 0);
                 return Value.makeUndef();
             }
             case NODE_COMPARE_DOCUMENT_POSITION: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 1, 1);
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 1);
                 return Value.makeAnyNumUInt();
             }
             case NODE_CONTAINS: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 1, 1);
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 1);
                 return Value.makeAnyBool();
             }
             default: {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,17 +22,36 @@ import dk.brics.tajs.flowgraph.SourceLocation;
 import dk.brics.tajs.options.OptionValues;
 import dk.brics.tajs.options.Options;
 import dk.brics.tajs.util.AnalysisException;
+import dk.brics.tajs.util.Canonicalizer;
+import dk.brics.tajs.util.DeepImmutable;
+
+import javax.annotation.Nonnull;
+import java.util.Set;
 
 /**
  * Label of abstract object.
  * Immutable.
  */
-public final class ObjectLabel implements Comparable<ObjectLabel> { // TODO: (#127) canonicalize?
+public final class ObjectLabel implements DeepImmutable {
 
     /**
      * Source location used for host functions.
      */
-    private static final SourceLocation initial_source = new SourceLocation(0, 0, "<initial state>");
+    private static SourceLocation initial_source;
+
+    /**
+     * Special object label for absent getter/setter.
+     */
+    public static ObjectLabel absent_accessor_function;
+
+    public static void reset() {
+        absent_accessor_function = make(null, null, null, Kind.FUNCTION, null, false);
+        initial_source = new SourceLocation.SyntheticLocationMaker("<initial state>").makeUnspecifiedPosition();
+    }
+
+    static {
+        reset();
+    }
 
     /**
      * Object kinds.
@@ -41,6 +60,7 @@ public final class ObjectLabel implements Comparable<ObjectLabel> { // TODO: (#1
 
         OBJECT("Object"),
         FUNCTION("Function"),
+        SYMBOL("Symbol"),
         ARRAY("Array"),
         REGEXP("RegExp"),
         DATE("Date"),
@@ -78,25 +98,30 @@ public final class ObjectLabel implements Comparable<ObjectLabel> { // TODO: (#1
 
     private final Function function; // non-null for user defined functions
 
-    private final HeapContext heapContext; // for context sensitivity
+    private final Context heapContext; // for context sensitivity
 
     /**
      * Cached hashcode for immutable instance.
      */
     private final int hashcode;
 
-    private ObjectLabel(HostObject hostobject, AbstractNode node, Function function, Kind kind, HeapContext heapContext, boolean singleton) {
+    /**
+     * Cached toString for immutable instance.
+     */
+    private String toString;
+
+    private ObjectLabel(HostObject hostobject, AbstractNode node, Function function, Kind kind, Context heapContext, boolean singleton) {
         this.hostobject = hostobject;
         this.node = node;
         this.function = function;
         this.kind = kind;
-        if (Options.get().isRecencyDisabled()) {
+        if (Options.get().isRecencyDisabled() || (kind == Kind.SYMBOL && hostobject == null)) { // non-host symbol objects always modeled as summary objects to avoid problem when summarizing objects with symbol property keys and polymorphic values
             this.singleton = false;
         } else {
             this.singleton = singleton;
         }
         if (heapContext == null) {
-            this.heapContext = HeapContext.make(null, null);
+            this.heapContext = Context.makeEmpty();
         } else {
             this.heapContext = heapContext;
         }
@@ -108,11 +133,14 @@ public final class ObjectLabel implements Comparable<ObjectLabel> { // TODO: (#1
                 this.kind.ordinal() * 117; // avoids using enum hashcodes
     }
 
+    public static ObjectLabel make(HostObject hostobject, AbstractNode node, Function function, Kind kind, Context heapContext, boolean singleton){
+        return Canonicalizer.get().canonicalize(new ObjectLabel(hostobject, node, function, kind, heapContext, singleton));
+    }
     /**
      * Constructs a new object label for a user defined non-function object.
      */
-    public ObjectLabel(AbstractNode n, Kind kind) {
-        this(null, n, null, kind, null, true);
+    public static ObjectLabel make(AbstractNode n, Kind kind) {
+        return make(null, n, null, kind, null, true);
     }
 
     /**
@@ -121,15 +149,15 @@ public final class ObjectLabel implements Comparable<ObjectLabel> { // TODO: (#1
      * represents a single concrete object (otherwise, it may represent any
      * number of concrete objects).
      */
-    public ObjectLabel(AbstractNode n, Kind kind, HeapContext heapContext) {
-        this(null, n, null, kind, heapContext, true);
+    public static ObjectLabel make(AbstractNode n, Kind kind, Context heapContext) {
+        return make(null, n, null, kind, heapContext, true);
     }
 
     /**
      * Constructs a new object label for a user defined function object.
      */
-    public ObjectLabel(Function f) {
-        this(null, null, f, Kind.FUNCTION, null, true);
+    public static ObjectLabel make(Function f) {
+        return make(null, null, f, Kind.FUNCTION, null, true);
     }
 
     /**
@@ -138,8 +166,8 @@ public final class ObjectLabel implements Comparable<ObjectLabel> { // TODO: (#1
      * represents a single concrete object (otherwise, it may represent any
      * number of concrete objects).
      */
-    public ObjectLabel(Function f, HeapContext heapContext) {
-        this(null, null, f, Kind.FUNCTION, heapContext, true);
+    public static ObjectLabel make(Function f, Context heapContext) {
+        return make(null, null, f, Kind.FUNCTION, heapContext, true);
     }
 
     /**
@@ -148,8 +176,15 @@ public final class ObjectLabel implements Comparable<ObjectLabel> { // TODO: (#1
      * represents a single concrete object (otherwise, it may represent any
      * number of concrete objects).
      */
-    public ObjectLabel(HostObject hostobject, Kind kind) {
-        this(hostobject, null, null, kind, null, true);
+    public static ObjectLabel make(HostObject hostobject, Kind kind) {
+        return make(hostobject, null, null, kind, null, true);
+    }
+
+    /**
+     * Constructs a copy of this object label with the given heap context.
+     */
+    public ObjectLabel copyWith(Context newHeapContext) {
+        return make(hostobject, node, function, kind, newHeapContext, singleton);
     }
 
     /**
@@ -214,7 +249,7 @@ public final class ObjectLabel implements Comparable<ObjectLabel> { // TODO: (#1
     /**
      * Returns the heap context.
      */
-    public HeapContext getHeapContext() {
+    public Context getHeapContext() {
         return heapContext;
     }
 
@@ -224,7 +259,7 @@ public final class ObjectLabel implements Comparable<ObjectLabel> { // TODO: (#1
     public ObjectLabel makeSummary() {
         if (!singleton && !Options.get().isRecencyDisabled())
             throw new AnalysisException("Attempt to obtain summary of non-singleton");
-        return new ObjectLabel(hostobject, node, function, kind, heapContext, false);
+        return make(hostobject, node, function, kind, heapContext, false);
     }
 
     /**
@@ -233,7 +268,15 @@ public final class ObjectLabel implements Comparable<ObjectLabel> { // TODO: (#1
     public ObjectLabel makeSingleton() {
         if (singleton)
             return this;
-        return new ObjectLabel(hostobject, node, function, kind, heapContext, true);
+        return make(hostobject, node, function, kind, heapContext, true);
+    }
+
+    /**
+     * Checks whether the given objects permit strong updating.
+     * @return true the set contains one singleton object label only
+     */
+    public static boolean allowStrongUpdate(Set<ObjectLabel> objs) {
+        return objs.size() == 1 && objs.iterator().next().isSingleton();
     }
 
     /**
@@ -241,6 +284,11 @@ public final class ObjectLabel implements Comparable<ObjectLabel> { // TODO: (#1
      */
     @Override
     public String toString() {
+        if (toString != null) {
+            return toString;
+        }
+        if (absent_accessor_function == null || this == absent_accessor_function)
+            return "<absent getter/setter>";
         StringBuilder b = new StringBuilder();
         if (singleton)
             b.append('@');
@@ -253,11 +301,12 @@ public final class ObjectLabel implements Comparable<ObjectLabel> { // TODO: (#1
             b.append(f).append("#fun").append(function.getIndex());
         } else if (hostobject != null)
             b.append(hostobject).append('[').append(hostobject.getAPI().getShortName()).append(']');
-        else {
+        else if (node != null) {
             b.append(kind).append("#node").append(node.getIndex());
         }
         b.append(heapContext);
-        return b.toString();
+        toString = b.toString();
+        return toString;
     }
 
     /**
@@ -265,6 +314,15 @@ public final class ObjectLabel implements Comparable<ObjectLabel> { // TODO: (#1
      */
     @Override
     public boolean equals(Object obj) {
+        if (!Canonicalizer.get().isCanonicalizing()) {
+            if (Options.get().isDebugOrTestEnabled() && this != obj && this.eq(obj))
+                throw new AnalysisException("Canonicalization error, objects are equal but not identical");
+            return this == obj;
+        }
+        return eq(obj);
+    }
+
+    private boolean eq(Object obj) {
         if (obj == this)
             return true;
         if (!(obj instanceof ObjectLabel))
@@ -275,7 +333,7 @@ public final class ObjectLabel implements Comparable<ObjectLabel> { // TODO: (#1
         }
         if ((hostobject == null) != (x.hostobject == null))
             return false;
-        if (!heapContext.equals(x.heapContext)) // using collection equality
+        if (!heapContext.equals(x.heapContext))
             return false;
         return (hostobject == null || hostobject.equals(x.hostobject)) &&
                 function == x.function && node == x.node &&
@@ -290,17 +348,25 @@ public final class ObjectLabel implements Comparable<ObjectLabel> { // TODO: (#1
         return hashcode;
     }
 
-    /**
-     * Compares this and the given object label.
-     * The source location is used as primary key, and toString is used as secondary key.
-     */
-    @Override
-    public int compareTo(ObjectLabel objlabel) {
-        int c = getSourceLocation().compareTo(objlabel.getSourceLocation());
-        if (c != 0)
-            return c;
-        if (equals(objlabel))
-            return 0;
-        return toString().compareTo(objlabel.toString());
+    public static class Comparator implements java.util.Comparator<ObjectLabel> {
+
+        /**
+         * Compares the two object labels.
+         * The source location is used as primary key, and toString is used as secondary key.
+         */
+        @Override
+        public int compare(@Nonnull ObjectLabel o1, @Nonnull ObjectLabel o2) {
+            return compareStatic(o1, o2);
+        }
+
+        public static int compareStatic(@Nonnull ObjectLabel o1, @Nonnull ObjectLabel o2) {
+            int c = SourceLocation.Comparator.compareStatic(o1.getSourceLocation(), o2.getSourceLocation());
+            if (c != 0)
+                return c;
+            if (o1.equals(o2))
+                return 0;
+            return o1.toString().compareTo(o2.toString());
+        }
+
     }
 }

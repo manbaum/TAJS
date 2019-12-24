@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,13 +17,7 @@
 package dk.brics.tajs.analysis.nativeobjects;
 
 import dk.brics.tajs.analysis.HostAPIs;
-import dk.brics.tajs.analysis.dom.DOMObjects;
 import dk.brics.tajs.lattice.HostObject;
-import dk.brics.tajs.lattice.ObjectLabel;
-import dk.brics.tajs.lattice.State;
-import dk.brics.tajs.lattice.Str;
-import dk.brics.tajs.lattice.Value;
-import dk.brics.tajs.options.Options;
 
 /**
  * Native ECMAScript object descriptors.
@@ -33,6 +27,25 @@ public enum ECMAScriptObjects implements HostObject {
     GLOBAL("<the global object>"),
 
     OBJECT("Object"),
+    OBJECT_DEFINE_PROPERTY("Object.defineProperty"),
+    OBJECT_CREATE("Object.create"),
+    OBJECT_DEFINE_PROPERTIES("Object.defineProperties"),
+    OBJECT_FREEZE("Object.freeze"),
+    OBJECT_GETOWNPROPERTYDESCRIPTOR("Object.getOwnPropertyDescriptor"),
+    OBJECT_GETOWNPROPERTYNAMES("Object.getOwnPropertyNames"),
+    OBJECT_GETPROTOTYPEOF("Object.getPrototypeOf"),
+    OBJECT_SETPROTOTYPEOF("Object.setPrototypeOf"),
+    OBJECT_ISEXTENSIBLE("Object.isExtensible"),
+    OBJECT_ISFROZEN("Object.isFrozen"),
+    OBJECT_ISSEALED("Object.isSealed"),
+    OBJECT_KEYS("Object.keys"),
+    OBJECT_PREVENTEXTENSIONS("Object.preventExtensions"),
+    OBJECT_SEAL("Object.seal"),
+    OBJECT_IS("Object.is"),
+    OBJECT_ASSIGN("Object.assign"),
+    OBJECT_GETOWNPROPERTYSYMBOLS("Object.getOwnPropertySymbols"),
+    OBJECT_VALUES("Object.values"),
+
     OBJECT_PROTOTYPE("Object.prototype"),
     OBJECT_TOSTRING("Object.prototype.toString"),
     OBJECT_TOLOCALESTRING("Object.prototype.toLocaleString"),
@@ -40,14 +53,14 @@ public enum ECMAScriptObjects implements HostObject {
     OBJECT_HASOWNPROPERTY("Object.prototype.hasOwnProperty"),
     OBJECT_ISPROTOTYPEOF("Object.prototype.isPrototypeOf"),
     OBJECT_PROPERTYISENUMERABLE("Object.prototype.propertyIsEnumerable"),
-    OBJECT_DEFINE_PROPERTY("Object.defineProperty"),
+    OBJECT_DEFINEGETTER("Object.prototype.__defineGetter__"),
+    OBJECT_DEFINESETTER("Object.prototype.__defineSetter__"),
 
     FUNCTION("Function"),
     FUNCTION_PROTOTYPE("Function.prototype"),
     FUNCTION_TOSTRING("Function.prototype.toString"),
     FUNCTION_APPLY("Function.prototype.apply"),
     FUNCTION_CALL("Function.prototype.call"),
-    FUNCTION_BIND("Function.prototype.bind"),
 
     ARRAY("Array"),
     ARRAY_ISARRAY("Array.isArray"),
@@ -61,7 +74,6 @@ public enum ECMAScriptObjects implements HostObject {
     ARRAY_REVERSE("Array.prototype.reverse"),
     ARRAY_SHIFT("Array.prototype.shift"),
     ARRAY_SLICE("Array.prototype.slice"),
-    ARRAY_SOME("Array.prototype.some"),
     ARRAY_SORT("Array.prototype.sort"),
     ARRAY_SPLICE("Array.prototype.splice"),
     ARRAY_UNSHIFT("Array.prototype.unshift"),
@@ -70,6 +82,7 @@ public enum ECMAScriptObjects implements HostObject {
     STRING("String"),
     STRING_PROTOTYPE("String.prototype"),
     STRING_FROMCHARCODE("String.fromCharCode"),
+    STRING_FROMCODEPOINT("String.fromCodePoint"),
     STRING_TOSTRING("String.prototype.toString"),
     STRING_VALUEOF("String.prototype.valueOf"),
     STRING_CHARAT("String.prototype.charAt"),
@@ -79,7 +92,6 @@ public enum ECMAScriptObjects implements HostObject {
     STRING_LASTINDEXOF("String.prototype.lastIndexOf"),
     STRING_LOCALECOMPARE("String.prototype.localeCompare"),
     STRING_MATCH("String.prototype.match"),
-    STRING_REPLACE("String.prototype.replace"),
     STRING_SEARCH("String.prototype.search"),
     STRING_SLICE("String.prototype.slice"),
     STRING_SPLIT("String.prototype.split"),
@@ -90,6 +102,12 @@ public enum ECMAScriptObjects implements HostObject {
     STRING_TOUPPERCASE("String.prototype.toUpperCase"),
     STRING_TOLOCALEUPPERCASE("String.prototype.toLocaleUpperCase"),
     STRING_TRIM("String.prototype.trim"),
+    STRING_TRIMSTART("String.prototype.trimStart"),
+    STRING_TRIMEND("String.prototype.trimEnd"),
+    STRING_STARTSWITH("String.prototype.startsWith"),
+    STRING_ENDSWITH("String.prototype.endsWith"),
+    STRING_INCLUDES("String.prototype.includes"),
+    STRING_CODEPOINTAT("String.prototype.codePointAt"),
 
     BOOLEAN("Boolean"),
     BOOLEAN_PROTOTYPE("Boolean.prototype"),
@@ -104,6 +122,10 @@ public enum ECMAScriptObjects implements HostObject {
     NUMBER_TOFIXED("Number.prototype.toFixed"),
     NUMBER_TOEXPONENTIAL("Number.prototype.toExponential"),
     NUMBER_TOPRECISION("Number.prototype.toPrecision"),
+    NUMBER_ISFINITE("Number.isFinite"),
+    NUMBER_ISSAFEINTEGER("Number.isSafeInteger"),
+    NUMBER_ISINTEGER("Number.isInteger"),
+    NUMBER_ISNAN("Number.isNan"),
 
     MATH("Math"),
     MATH_MAX("Math.max"),
@@ -124,6 +146,23 @@ public enum ECMAScriptObjects implements HostObject {
     MATH_EXP("Math.exp"),
     MATH_FLOOR("Math.floor"),
     MATH_LOG("Math.log"),
+    MATH_IMUL("Math.imul"),
+    MATH_SIGN("Math.sign"),
+    MATH_TRUNC("Math.trunc"),
+    MATH_TANH("Math.tanh"),
+    MATH_ASINH("Math.asinh"),
+    MATH_ACOSH("Math.acosh"),
+    MATH_ATANH("Math.atanh"),
+    MATH_HYPOT("Math.hypot"),
+    MATH_FROUND("Math.fround"),
+    MATH_CLZ32("Math.clz32"),
+    MATH_CBRT("Math.cbrt"),
+    MATH_SINH("Math.sinh"),
+    MATH_COSH("Math.cosh"),
+    MATH_LOG10("Math.log10"),
+    MATH_LOG2("Math.log2"),
+    MATH_LOG1P("Math.log1p"),
+    MATH_EXPM1("Math.expm1"),
 
     DATE("Date"),
     DATE_PARSE("Date.parse"),
@@ -170,12 +209,15 @@ public enum ECMAScriptObjects implements HostObject {
     DATE_SETUTCMONTH("Date.prototype.setUTCMonth"),
     DATE_SETFULLYEAR("Date.prototype.setFullYear"),
     DATE_SETUTCFULLYEAR("Date.prototype.setUTCFullYear"),
-    DATE_TOISOSTRING("Date.prototype.toISOString"),
     DATE_TOJSON("Date.prototype.toJSON"),
     DATE_TOUTCSTRING("Date.prototype.toUTCString"),
     DATE_GETYEAR("Date.prototype.getYear"),
     DATE_SETYEAR("Date.prototype.setYear"),
     DATE_TOGMTSTRING("Date.prototype.toGMTString"),
+
+    PROXY("Proxy"),
+    PROXY_PROTOTYPE("Proxy.prototype"),
+    PROXY_TOSTRING("Proxy.prototype.toString"),
 
     REGEXP("RegExp"),
     REGEXP_PROTOTYPE("RegExp.prototype"),
@@ -184,6 +226,27 @@ public enum ECMAScriptObjects implements HostObject {
     REGEXP_LASTINDEX("RegExp.prototype.lastIndex"),
     REGEXP_TEST("RegExp.prototype.test"),
     REGEXP_TOSTRING("RegExp.prototype.toString"),
+
+    SYMBOL("Symbol"),
+    SYMBOL_INSTANCES("Symbol instances"), // TODO: what is this? and why the name "Symbol instances"? - github #512
+    SYMBOL_PROTOTYPE("Symbol.prototype"),
+    SYMBOL_TOSTRING("Symbol.prototype.toString"),
+    SYMBOL_TOSOURCE("Symbol.prototype.toSource"),
+    SYMBOL_VALUEOF("Symbol.prototype.valueOf"),
+    SYMBOL_PROTOTYPE_TOPRIMITIVE("Symbol.prototype[@@toPrimitive]"),
+    SYMBOL_FOR("Symbol.for"),
+    SYMBOL_KEYFOR("Symbol.keyFor"),
+    SYMBOL_HAS_INSTANCE("Symbol.hasInstance"), // TODO: not yet wired to the native functions - github #511
+    SYMBOL_IS_CONCAT_SPREADABLE("Symbol.isConcatSpreadable"), // TODO: not yet wired to the native functions - github #511
+    SYMBOL_ITERATOR("Symbol.iterator"), // TODO: not yet wired to the native functions - github #511
+    SYMBOL_MATCH("Symbol.match"), // TODO: not yet wired to the native functions - github #511
+    SYMBOL_REPLACE("Symbol.replace"), // TODO: not yet wired to the native functions - github #511
+    SYMBOL_SEARCH("Symbol.search"), // TODO: not yet wired to the native functions - github #511
+    SYMBOL_SPECIES("Symbol.species"), // TODO: not yet wired to the native functions - github #511
+    SYMBOL_SPLIT("Symbol.split"), // TODO: not yet wired to the native functions - github #511
+    SYMBOL_TO_PRIMITIVE("Symbol.toPrimitive"), // TODO: not yet wired to the native functions - github #511
+    SYMBOL_TO_STRING_TAG("Symbol.toStringTag"), // TODO: not yet wired to the native functions - github #511
+    SYMBOL_UNSCOPABLES("Symbol.unscopables"), // TODO: not yet wired to the native functions - github #511
 
     ERROR("Error"),
     ERROR_PROTOTYPE("Error.prototype"),
@@ -202,21 +265,9 @@ public enum ECMAScriptObjects implements HostObject {
     URI_ERROR_PROTOTYPE("URIError.prototype"),
 
     JSON("JSON"),
+    JSON_OBJECT("JSONObject"),
     JSON_PARSE("JSON.parse"),
     JSON_STRINGIFY("JSON.stringify"),
-
-    OBJECT_CREATE("Object.create"),
-    OBJECT_DEFINEPPROPERTIES("Object.defineProperties"),
-    OBJECT_FREEZE("Object.freeze"),
-    OBJECT_GETOWNPROPERTYDESCRIPTOR("Object.getOwnPropertyDescriptor"),
-    OBJECT_GETOWNPROPERTYNAMES("Object.getOwnPropertyNames"),
-    OBJECT_GETPROTOTYPEOF("Object.getPrototypeOf"),
-    OBJECT_ISEXTENSIBLE("Object.isExtensible"),
-    OBJECT_ISFROZEN("Object.isFrozen"),
-    OBJECT_ISSEALED("Object.isSealed"),
-    OBJECT_KEYS("Object.keys"),
-    OBJECT_PREVENTEXTENSIONS("Object.preventExtensions"),
-    OBJECT_SEAL("Object.seal"),
 
     EVAL("eval"),
     PARSEINT("parseInt"),
@@ -232,25 +283,7 @@ public enum ECMAScriptObjects implements HostObject {
     ESCAPE("escape"),
     UNESCAPE("unescape"),
 
-    TAJS_DUMPVALUE("TAJS_dumpValue"), // nonstandard
-    TAJS_DUMPPROTOTYPE("TAJS_dumpPrototype"), // nonstandard
-    TAJS_DUMPOBJECT("TAJS_dumpObject"), // nonstandard
-    TAJS_DUMPSTATE("TAJS_dumpState"), // nonstandard
-    TAJS_DUMPMODIFIEDSTATE("TAJS_dumpModifiedState"), // nonstandard
-    TAJS_DUMPATTRIBUTES("TAJS_dumpAttributes"), // nonstandard
-    TAJS_DUMPEXPRESSION("TAJS_dumpExp"), //nonstandard
-    TAJS_DUMPNF("TAJS_dumpNF"), //nonstandard
-    TAJS_CONVERSION_TO_PRIMITIVE("TAJS_conversionToPrimitive"), // nonstandard
-    TAJS_GET_UI_EVENT("TAJS_getUIEvent"), // nonstandard
-    TAJS_GET_DOCUMENT_EVENT("TAJS_getDocumentEvent"), // nonstandard
-    TAJS_GET_MOUSE_EVENT("TAJS_getMouseEvent"), // nonstandard
-    TAJS_GET_KEYBOARD_EVENT("TAJS_getKeyboardEvent"), // nonstandard
-    TAJS_GET_EVENT_LISTENER("TAJS_getEventListener"), // nonstandard
-    TAJS_GET_WHEEL_EVENT("TAJS_getWheelEvent"), // nonstandard
-    TAJS_GET_AJAX_EVENT("TAJS_getAjaxEvent"), // nonstandard
-    TAJS_ADD_CONTEXT_SENSITIVITY("TAJS_addContextSensitivity"), // nonstandard
-    TAJS_ASSERT("TAJS_assert"), //nonstandard
-    TAJS_NEW_OBJECT("TAJS_newObject"); // nonstandard
+    ;
 
     private HostAPIs api;
 
@@ -269,13 +302,5 @@ public enum ECMAScriptObjects implements HostObject {
     @Override
     public HostAPIs getAPI() {
         return api;
-    }
-
-    @Override
-    public void evaluateSetter(ObjectLabel objlabel, Str prop, Value value, State state) {
-        if (this == GLOBAL && Options.get().isDOMEnabled()) { // GLOBAL == window, when DOM mode is enabled
-            DOMObjects.evaluateDOMSetter(objlabel, prop, value, state);
-        }
-        // not applicable for any other of these host objects
     }
 }

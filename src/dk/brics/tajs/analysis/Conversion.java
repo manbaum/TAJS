@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,23 +19,22 @@ package dk.brics.tajs.analysis;
 import dk.brics.tajs.analysis.js.UserFunctionCalls;
 import dk.brics.tajs.analysis.nativeobjects.ECMAScriptFunctions;
 import dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects;
-import dk.brics.tajs.analysis.nativeobjects.concrete.ConcreteString;
 import dk.brics.tajs.analysis.nativeobjects.concrete.TAJSConcreteSemantics;
 import dk.brics.tajs.flowgraph.AbstractNode;
 import dk.brics.tajs.flowgraph.BasicBlock;
 import dk.brics.tajs.lattice.Bool;
 import dk.brics.tajs.lattice.ExecutionContext;
+import dk.brics.tajs.lattice.FunctionPartitions;
+import dk.brics.tajs.lattice.FunctionTypeSignatures;
 import dk.brics.tajs.lattice.ObjectLabel;
 import dk.brics.tajs.lattice.ObjectLabel.Kind;
 import dk.brics.tajs.lattice.State;
 import dk.brics.tajs.lattice.Str;
 import dk.brics.tajs.lattice.UnknownValueResolver;
 import dk.brics.tajs.lattice.Value;
+import dk.brics.tajs.solver.GenericSolver;
 import dk.brics.tajs.solver.Message.Severity;
 import dk.brics.tajs.util.AnalysisException;
-import dk.brics.tajs.util.None;
-import dk.brics.tajs.util.OptionalObjectVisitor;
-import dk.brics.tajs.util.Some;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -46,7 +45,6 @@ import java.util.regex.Pattern;
 
 import static dk.brics.tajs.util.Collections.newList;
 import static dk.brics.tajs.util.Collections.newSet;
-import static dk.brics.tajs.util.Collections.singleton;
 
 /**
  * Type conversions for abstract values (Chapter 9).
@@ -79,10 +77,12 @@ public class Conversion {
 
     /**
      * 8.6.2.6 [[DefaultValue]].
-     * Can only return primitive values.
+     * Can only return primitive values and symbols.
      */
     private static Value defaultValue(ObjectLabel obj, Hint hint, Solver.SolverInterface c) {
-        // When the [[DefaultValue]] method of O is called with no hint, then it behaves as if the hint were Number, 
+        if (obj.getKind() == Kind.SYMBOL)
+            return Value.makeObject(obj);
+        // When the [[DefaultValue]] method of O is called with no hint, then it behaves as if the hint were Number,
         // unless O is a Date object (section 15.9), in which case it behaves as if the hint were String.
         if (hint == Hint.NONE)
             hint = obj.getKind() == Kind.DATE ? Hint.STR : Hint.NUM;
@@ -101,32 +101,32 @@ public class Conversion {
             // 7. Call the [[Call]] method of Result(5), with O as the this value and an empty argument list.
             // 8. If Result(7) is a primitive value, return Result(7).
             // 9. Throw a TypeError exception.
-            Value tostring = pv.readPropertyWithAttributes(Collections.singleton(obj), "toString");
+            Value tostring = pv.readPropertyValue(Collections.singleton(obj), "toString");
             visitPropertyRead(obj, "toString", s, c);
             tostring = UnknownValueResolver.getRealValue(tostring, s);
             State tostringState = s.clone(); // TODO: no need to clone if certain that convertToStringOrValueOf will not call any user-defined functions
             c.setState(tostringState);
-            result = convertToStringOrValueOf(obj, tostring.getObjectLabels(), c, true);
+            result = convertToStringOrValueOf(obj, tostring.getObjectLabels(), true, c, tostring.getFunctionPartitions());
             result = UnknownValueResolver.getRealValue(result, tostringState);
             c.setState(s);
             if (!isMaybeNonCallable(tostring)) {
-                s.setToNone(); // TODO: skip this if we decide to skip the cloning above
+                s.setToBottom(); // TODO: skip this if we decide to skip the cloning above
             }
-            s.propagate(tostringState, false);
+            s.propagate(tostringState, false, false);
             if (isMaybeNonCallable(tostring) || result.isMaybeObject()) {
-                Value valueof = pv.readPropertyWithAttributes(Collections.singleton(obj), "valueOf");
+                Value valueof = pv.readPropertyValue(Collections.singleton(obj), "valueOf");
                 visitPropertyRead(obj, "valueOf", s, c);
                 valueof = UnknownValueResolver.getRealValue(valueof, s);
                 State valueOfState = s.clone(); // TODO: no need to clone if certain that convertToStringOrValueOf will not call any user-defined functions
                 c.setState(valueOfState);
-                Value result2 = convertToStringOrValueOf(obj, valueof.getObjectLabels(), c, false);
+                Value result2 = convertToStringOrValueOf(obj, valueof.getObjectLabels(), false, c, valueof.getFunctionPartitions());
                 result2 = UnknownValueResolver.getRealValue(result2, valueOfState);
                 result = result.restrictToNotObject().join(result2);
                 c.setState(s);
                 if (!isMaybeNonCallable(valueof)) {
-                    s.setToNone(); // TODO: skip this if we decide to skip the cloning above
+                    s.setToBottom(); // TODO: skip this if we decide to skip the cloning above
                 }
-                s.propagate(valueOfState, false);
+                s.propagate(valueOfState, false, false);
                 if (isMaybeNonCallable(valueof) || result.isMaybeObject())
                     maybe_typeerror = true;
             }
@@ -141,33 +141,33 @@ public class Conversion {
             // 7. Call the [[Call]] method of Result(5), with O as the this value and an empty argument list.
             // 8. If Result(7) is a primitive value, return Result(7).
             // 9. Throw a TypeError exception.
-            Value valueof = pv.readPropertyWithAttributes(Collections.singleton(obj), "valueOf");
+            Value valueof = pv.readPropertyValue(Collections.singleton(obj), "valueOf");
             visitPropertyRead(obj, "valueOf", s, c);
             valueof = UnknownValueResolver.getRealValue(valueof, s);
             State valueofState = s.clone(); // TODO: no need to clone if certain that convertToStringOrValueOf will not call any user-defined functions
             c.setState(valueofState);
-            result = convertToStringOrValueOf(obj, valueof.getObjectLabels(), c, false);
+            result = convertToStringOrValueOf(obj, valueof.getObjectLabels(), false, c, valueof.getFunctionPartitions());
             result = UnknownValueResolver.getRealValue(result, valueofState);
             c.setState(s);
             if (!isMaybeNonCallable(valueof)) {
-                s.setToNone(); // TODO: skip this if we decide to skip the cloning above
+                s.setToBottom(); // TODO: skip this if we decide to skip the cloning above
             }
-            s.propagate(valueofState, false);
+            s.propagate(valueofState, false, false);
             if (isMaybeNonCallable(valueof) || result.isMaybeObject()) {
-                Value tostring = pv.readPropertyWithAttributes(Collections.singleton(obj), "toString");
+                Value tostring = pv.readPropertyValue(Collections.singleton(obj), "toString");
                 visitPropertyRead(obj, "toString", s, c);
                 tostring = UnknownValueResolver.getRealValue(tostring, s);
                 State toStringState = s.clone(); // TODO: no need to clone if certain that convertToStringOrValueOf will not call any user-defined functions
                 c.setState(toStringState);
-                Value result2 = convertToStringOrValueOf(obj, tostring.getObjectLabels(), c, true);
+                Value result2 = convertToStringOrValueOf(obj, tostring.getObjectLabels(), true, c, tostring.getFunctionPartitions());
                 result2 = UnknownValueResolver.getRealValue(result2, toStringState);
                 result = result.restrictToNotObject().join(result2);
                 c.setState(s);
                 if (!isMaybeNonCallable(tostring)) {
-                    s.setToNone(); // TODO: skip this if we decide to skip the cloning above
+                    s.setToBottom(); // TODO: skip this if we decide to skip the cloning above
                 }
-                s.propagate(toStringState, false);
-                if (tostring.isNone() || isMaybeNonCallable(tostring) || result.isMaybeObject())
+                s.propagate(toStringState, false, false);
+                if (isMaybeNonCallable(tostring) || result.isMaybeObject())
                     maybe_typeerror = true;
             }
         } else
@@ -199,13 +199,11 @@ public class Conversion {
      * @param objs     the toString or valueOf functions
      * @param toString true if toString, false if valueOf
      */
-    private static Value convertToStringOrValueOf(ObjectLabel thiss, Set<ObjectLabel> objs, Solver.SolverInterface c, boolean toString) {
+    private static Value convertToStringOrValueOf(ObjectLabel thiss, Set<ObjectLabel> objs, boolean toString, Solver.SolverInterface c, FunctionPartitions fvp) {
         List<Value> result = newList();
-        boolean anyUserFunctions = false, anyHostFunctions = false;
         BasicBlock implicitAfterCall = null;
         for (ObjectLabel obj : objs) {
             if (obj.isHostObject()) {
-                anyHostFunctions = true;
                 switch ((HostAPIs) obj.getHostObject().getAPI()) {
                     case ECMASCRIPT_NATIVE:
                         Value v = toString ? ECMAScriptFunctions.internalToString(thiss, (ECMAScriptObjects) obj.getHostObject(), c) : ECMAScriptFunctions.internalValueOf(thiss, (ECMAScriptObjects) obj.getHostObject(), c);
@@ -218,7 +216,6 @@ public class Conversion {
                         break;
                 }
             } else if (obj.getKind() == Kind.FUNCTION) {
-                anyUserFunctions = true;
                 implicitAfterCall = UserFunctionCalls.implicitUserFunctionCall(obj, new FunctionCalls.CallInfo() {
 
                     @Override
@@ -242,13 +239,13 @@ public class Conversion {
                     }
 
                     @Override
-                    public Set<ObjectLabel> prepareThis(State caller_state, State callee_state) {
-                        return singleton(thiss);
+                    public Value getThis() {
+                        return Value.makeObject(thiss);
                     }
 
                     @Override
                     public Value getArg(int i) {
-                        return Value.makeUndef();
+                        return Value.makeAbsent();
                     }
 
                     @Override
@@ -275,15 +272,30 @@ public class Conversion {
                     public ExecutionContext getExecutionContext() {
                         return c.getState().getExecutionContext();
                     }
+
+                    @Override
+                    public boolean assumeFunction() {
+                        return false;
+                    }
+
+                    @Override
+                    public FunctionPartitions getFunctionPartitions(ObjectLabel function) {
+                        return fvp;
+                    }
+
+                    @Override
+                    public FunctionTypeSignatures getFunctionTypeSignatures() {
+                        return null;
+                    }
                 }, c);
             }
         }
-        return UserFunctionCalls.implicitUserFunctionReturn(result, anyUserFunctions, anyHostFunctions, implicitAfterCall, c);
+        return UserFunctionCalls.implicitUserFunctionReturn(result, !result.isEmpty(), implicitAfterCall, c);
     }
 
     /**
      * 9.1 ToPrimitive.
-     * Converts a value to a primitive value according to the hint.
+     * Converts a value to a primitive value (or symbol) according to the hint.
      * Has no effect on primitive types but transforms wrapper objects to their wrapped values.
      * May have side-effects on the current state.
      */
@@ -291,12 +303,13 @@ public class Conversion {
         v = UnknownValueResolver.getRealValue(v, c.getState());
         Collection<Value> vs = newList();
         Value nonobj = v.restrictToNotObject(); // The result equals the input argument (no conversion).
-        if (!nonobj.isNotPresent())
+        if (!nonobj.isNotPresent()) {
             vs.add(nonobj);
+        }
         boolean first = true;
         State res = null;
         State orig = c.getState();
-        for (Iterator<ObjectLabel> it = v.getObjectLabels().iterator(); it.hasNext(); ) {
+        for (Iterator<ObjectLabel> it = v.restrictToNonSymbolObject().getObjectLabels().iterator(); it.hasNext(); ) {
             ObjectLabel ol = it.next();
             boolean last = !it.hasNext();
             // Return a default value for the Object. The default value of an object is
@@ -305,12 +318,12 @@ public class Conversion {
             if (!last) {
                 c.setState(orig.clone());
             }
-            vs.add(defaultValue(ol, hint, c)); // may have side-effects
+            vs.add(defaultValue(ol, hint, c)); // FIXME: defaultValue may have side-effects, use ParallelTransfer (see below...) (Github #404)
             if (first) {
                 res = c.getState();
                 first = false;
             } else {
-                res.propagate(c.getState(), false);
+                res.propagate(c.getState(), false, false);
             }
             if (!last) {
                 c.setState(orig);
@@ -319,6 +332,23 @@ public class Conversion {
         if (!first) {
             c.setState(res);
         }
+// FIXME: use of ParallelTransfer may change current state to a different object, which may affect callers? (Github #404)
+//        if (v.isMaybeObject()) {
+//            int fresh = c.getState().getRegisters().size();
+//            ParallelTransfer.process(v.getObjectLabels(), ol -> {
+//                // Return a default value for the Object. The default value of an object is
+//                // retrieved by calling the internal [[DefaultValue]] method of the object,
+//                // passing the optional hint PreferredType.
+//                Value dv = defaultValue(ol, hint, c);
+//                if (!dv.isNone()) { // may be none due to implici toString/valueOf conversions
+//                    c.getState().writeRegister(fresh, dv);
+//                }
+//            }, c);
+//            if (c.getState().isRegisterDefined(fresh)) {
+//                vs.add(c.getState().readRegister(fresh));
+//                c.getState().removeRegister(fresh);
+//            }
+//        }
         return UnknownValueResolver.join(vs, c.getState());
     }
 
@@ -344,8 +374,13 @@ public class Conversion {
                     result = result.joinBool(false);
                 else
                     result = result.joinBool(true);
-            } else
-                result = result.joinAnyBool();
+            } else {
+                if (!v.isMaybeZero()) {
+                    result = result.joinBool(true);
+                } else {
+                    result = result.joinAnyBool();
+                }
+            }
         }
         if (!v.isNotStr()) {
             // The result is false if the argument is the empty string (its length is zero); otherwise the result is true.
@@ -354,12 +389,14 @@ public class Conversion {
                     result = result.joinBool(false);
                 else
                     result = result.joinBool(true);
-            } else if (v.isMaybeStrOther() || v.isMaybeStrIdentifierParts() || v.isMaybeStrJSON())
+            } else if (v.isMaybeStrPrefix() && !v.getPrefix().isEmpty()) // trivially true, but better make sure
+                result = result.joinBool(true);
+            else if (v.isMaybeStrOtherIdentifierParts())
                 result = result.joinAnyBool();
             else
                 result = result.joinBool(true);
         }
-        if (v.isMaybeObject()) {
+        if (v.isMaybeObjectOrSymbol()) {
             // true
             result = result.joinBool(true);
         }
@@ -374,6 +411,9 @@ public class Conversion {
             // Call ToPrimitive(input argument, hint Number).
             v = toPrimitive(v, Hint.NUM, c);
             c.getMonitoring().addMessage(c.getNode(), Severity.LOW, "Converting object to number");
+        }
+        if (v.isMaybeSymbol()) {
+            Exceptions.throwTypeError(c);
         }
         Value result = v.restrictToNum(); // The result equals the input argument (no conversion).
         if (v.isMaybeUndef()) {
@@ -410,29 +450,41 @@ public class Conversion {
     public static Value fromStrtoNum(Str str, Solver.SolverInterface c) {
         Value v;
         if (str.isMaybeSingleStr()) {
-            String s = str.getStr();
+            String s = str.getStr().trim();
             if (s.isEmpty())
                 return Value.makeNum(0.0);
             else {
-                s = s.trim();
                 if (STR_DECIMAL_LITERAL.matcher(s).matches())
-                    v = Value.makeNum(new Double(s));
+                    v = Value.makeNum(Double.parseDouble(s));
                 else if (HEX_INTEGER_LITERAL.matcher(s).matches())
                     v = Value.makeNum(Long.parseLong(s.substring(2), 16));
                 else
                     v = Value.makeNumNaN();
             }
         } else {
-            if (str.isMaybeStrIdentifierParts()
-                    || str.isMaybeStrPrefixedIdentifierParts()
+            if (str.isMaybeStrOtherIdentifierParts()
                     || str.isMaybeStrJSON()
                     || str.isMaybeStrOther() /* 9.3.1. allows trimming */
-                    || (str.isMaybeStrUInt() && str.isMaybeStrOtherNum())) {
-                v = Value.makeAnyNum(); // TODO: could be more precise for STR_PREFIX if the prefix string is not a UInt
+                    || (str.isMaybeStrUInt() && str.isMaybeStrOtherNum())
+                    ) {
+                v = Value.makeAnyNum();
             } else if (str.isMaybeStrUInt()) {
                 v = Value.makeAnyNumUInt();
             } else if (str.isMaybeStrOtherNum()) {
                 v = Value.makeAnyNumOther().joinNumNaN().joinNumInf();
+            } else if (str.isMaybeStrPrefix()) {
+                v = Value.makeAnyNum();
+                String prefix = str.getPrefix().trim();
+                if (!prefix.startsWith("I")) {
+                    v = v.restrictToNotNumInf();
+                }
+                boolean isOctal = prefix.startsWith("0x");
+                if (prefix.matches(".*(\\.[^0]|[^0-9.]).*") && !isOctal) { // matching examples: '123.4' or 'foo', important non-match: '123.0'
+                    v = v.restrictToNotNumUInt();
+                }
+                if (prefix.matches("-?.*[^0-9.].*")) { // matching examples: 'foo'
+                    v = v.restrictToNotNumOther();
+                }
             } else {
                 v = Value.makeNone();
             }
@@ -463,8 +515,10 @@ public class Conversion {
                 r = r.joinNum(0);
             if (num.isMaybeInf())
                 r = r.joinNumInf();
-            if (num.isMaybeNumUInt())
-                r = r.joinAnyNumUInt();
+            if (num.isMaybeNumUIntPos())
+                r = r.join(Value.makeAnyNumUIntPos());
+            if (num.isMaybeZero())
+                r = r.joinNum(0);
             if (num.isMaybeNumOther())
                 r = r.joinAnyNumUInt().joinAnyNumOther(); // may overflow UInt32
             return r;
@@ -504,6 +558,10 @@ public class Conversion {
      */
     public static Value toString(Value v, Solver.SolverInterface c) {
         v = UnknownValueResolver.getRealValue(v, c.getState());
+        if (v.isMaybeSymbol()) {
+            Exceptions.throwTypeError(c);
+            v = v.restrictToNotSymbol();
+        }
         // object to string
         if (v.isMaybeObject()) {
             // Call ToPrimitive(input argument, hint String).
@@ -556,8 +614,10 @@ public class Conversion {
                 if (v.isMaybeNaN())
                     result = result.joinStr(Double.toString(Double.NaN));
                 // uint/other/inf to string
-                if (v.isMaybeNumUInt())
+                if (v.isMaybeNumUIntPos())
                     result = result.joinAnyStrUInt();
+                if (v.isMaybeZero())
+                    result = result.joinStr("0");
                 if (v.isMaybeNumOther())
                     result = result.joinAnyStrOtherNum();
                 if (v.isMaybeInf())
@@ -582,63 +642,83 @@ public class Conversion {
     }
 
     /**
+     * ToProperty.
+     */
+    public static Value toProperty(Value v, Solver.SolverInterface c) {
+        Value notSymb = v.restrictToNotSymbol();
+        Value toStringed = Conversion.toString(notSymb, c); // FIXME: may summarize object labels in notSymb and v (github #514)
+        return toStringed.join(v.restrictToSymbol());
+    }
+
+    /**
      * Conversion of numbers to strings according to a concrete JavaScript semantics. Is only required for the special cases, such as formatting of very large or small numbers.
      */
     private static String specialNumberToString(double dbl, Solver.SolverInterface c) {
         final List<Value> noArgs = newList();
-        return TAJSConcreteSemantics.convertTAJSCallExplicit(Value.makeNum(dbl), "Number.prototype.toString", noArgs, ConcreteString.class, c).apply(new OptionalObjectVisitor<String, ConcreteString>() {
-            @Override
-            public String visit(None<ConcreteString> obj) {
-                return null;
-            }
+        return TAJSConcreteSemantics.convertTAJSCallExplicit(Value.makeNum(dbl), "Number.prototype.toString", noArgs, c).getStr();
+    }
 
-            @Override
-            public String visit(Some<ConcreteString> obj) {
-                return obj.get().getString();
-            }
-        });
+    /**
+     * @see #toObject(AbstractNode, Value, boolean, boolean, GenericSolver.SolverInterface)
+     */
+    public static Value toObject(AbstractNode node, Value v, Solver.SolverInterface c) {
+        return toObject(node, v, true, false, c);
     }
 
     /**
      * 9.9 ToObject, returning a Value.
      * Note that this may have side-effects on the current state!
-     * However, if the solver interface is null, no side-effects or messages are produced (but all object labels are still returned).
+     * @param no_sideeffects if true, no side-effects or messages are produced (but all object labels are still returned).
      */
-    public static Value toObject(AbstractNode node, Value v, Solver.SolverInterface c) {
-        return Value.makeObject(toObjectLabels(node, v, c));
+    public static Value toObject(AbstractNode node, Value v, boolean warnAboutCoercions, boolean no_sideeffects, Solver.SolverInterface c) {
+        return v.applyFunction(v2 -> Value.makeObject(toObjectLabels(node, v2, warnAboutCoercions, no_sideeffects, c)).setFunctionPartitions(v2.getFunctionPartitions()));
+    }
+
+    /**
+     * @see #toObjectLabels(AbstractNode, Value, boolean, boolean, GenericSolver.SolverInterface)
+     */
+    public static Set<ObjectLabel> toObjectLabels(AbstractNode node, Value v, Solver.SolverInterface c) {
+        return toObjectLabels(node, v, true, false, c);
     }
 
     /**
      * 9.9 ToObject, returning a set of object labels.
      * Note that this may have side-effects on the current state!
-     * However, if the solver interface is null, no side-effects or messages are produced (but all object labels are still returned).
+     * @param no_sideeffects if true, no side-effects or messages are produced (but all object labels are still returned).
      */
-    public static Set<ObjectLabel> toObjectLabels(AbstractNode node, Value v, Solver.SolverInterface c) {
+    public static Set<ObjectLabel> toObjectLabels(AbstractNode node, Value v, boolean warnAboutCoercions, boolean no_sideeffects, Solver.SolverInterface c) {
         Set<ObjectLabel> result = newSet();
-        State state = c != null ? c.getState() : null;
+        State state = c.getState();
         // Object: The result is the input argument (no conversion).
         result.addAll(v.getObjectLabels());
+        // FIXME: ToObject of symbol should create *new* Symbol object (see https://www.ecma-international.org/ecma-262/#sec-toobject) - github #516
         // primitive number to object
         if (!v.isNotNum()) {
             // Create a new Number object whose [[value]] property is set to the value of the number.
-            ObjectLabel lNum = new ObjectLabel(node, Kind.NUMBER);
-            if (c != null) {
+            Value vNum = v.restrictToNum();
+            ObjectLabel lNum = makeBoxedPrimitiveLabel(node, Kind.NUMBER, vNum, c);
+            if (!no_sideeffects) {
                 state.newObject(lNum);
                 state.writeInternalPrototype(lNum, Value.makeObject(InitialStateBuilder.NUMBER_PROTOTYPE));
-                state.writeInternalValue(lNum, v.restrictToNum());
-                c.getMonitoring().addMessage(c.getNode(), Severity.LOW, "Converting primitive number to object");
+                state.writeInternalValue(lNum, vNum);
+                if (warnAboutCoercions) {
+                    c.getMonitoring().addMessage(c.getNode(), Severity.LOW, "Converting primitive number to object");
+                }
             }
             result.add(lNum);
         }
         // primitive boolean to object
         if (!v.isNotBool()) {
             // Create a new Boolean object whose [[value]] property is set to the value of the boolean.
-            ObjectLabel lBool = new ObjectLabel(node, Kind.BOOLEAN);
-            if (c != null) {
+            Value vBool = v.restrictToBool();
+            ObjectLabel lBool = makeBoxedPrimitiveLabel(node, Kind.BOOLEAN, vBool, c);
+            if (!no_sideeffects) {
                 state.newObject(lBool);
                 state.writeInternalPrototype(lBool, Value.makeObject(InitialStateBuilder.BOOLEAN_PROTOTYPE));
-                state.writeInternalValue(lBool, v.restrictToBool());
-                c.getMonitoring().addMessage(c.getNode(), Severity.LOW, "Converting primitive boolean to object");
+                state.writeInternalValue(lBool, vBool);
+                if (warnAboutCoercions) {
+                    c.getMonitoring().addMessage(c.getNode(), Severity.LOW, "Converting primitive boolean to object");
+                }
             }
             result.add(lBool);
         }
@@ -647,34 +727,43 @@ public class Conversion {
             // Create a new String object whose [[value]] property is set to the value of the string.
             Value vstring = v.restrictToStr();
             Value vlength = vstring.isMaybeSingleStr() ? Value.makeNum(vstring.getStr().length()) : Value.makeAnyNumUInt();
-            ObjectLabel lString = new ObjectLabel(node, Kind.STRING);
-            if (c != null) {
+            ObjectLabel lString = makeBoxedPrimitiveLabel(node, Kind.STRING, vstring, c);
+            if (!no_sideeffects) {
                 state.newObject(lString);
                 state.writeInternalPrototype(lString, Value.makeObject(InitialStateBuilder.STRING_PROTOTYPE));
                 state.writeInternalValue(lString, vstring);
                 c.getAnalysis().getPropVarOperations().writePropertyWithAttributes(lString, "length", vlength.setAttributes(true, true, true));
-                c.getMonitoring().addMessage(c.getNode(), Severity.LOW, "Converting primitive string to object");
+                if (warnAboutCoercions) {
+                    c.getMonitoring().addMessage(c.getNode(), Severity.LOW, "Converting primitive string to object");
+                }
             }
             result.add(lString);
         }
         // null to object
         if (!v.isNotNull()) {
             // Throw a TypeError exception.
-            if (c != null) {
+            if (!no_sideeffects) {
                 Exceptions.throwTypeError(c);
-                // TODO: warn about null-to-object conversion? (we already have Monitoring.visitPropertyAccess)
+                // TODO: warn about null-to-object conversion? (we already have AnalysisMonitor.visitPropertyAccess)
                 // c.getMonitoring().addMessage(c.getNode(), Severity.HIGH, "TypeError, attempt to convert null to object");
             }
         }
         // undefined to object
         if (!v.isNotUndef()) {
             // Throw a TypeError exception.
-            if (c != null) {
+            if (!no_sideeffects) {
                 Exceptions.throwTypeError(c);
-                // TODO: warn about undefined-to-object conversion? (we already have Monitoring.visitPropertyAccess)
+                // TODO: warn about undefined-to-object conversion? (we already have AnalysisMonitor.visitPropertyAccess)
                 // c.getMonitoring().addMessage(c.getNode(), Severity.HIGH, "TypeError, attempt to convert undefined to object");
             }
         }
         return result;
+    }
+
+    /**
+     * Makes an object label for a boxed primitive, using heap context sensitivity to distinguish the underlying primitive values.
+     */
+    private static ObjectLabel makeBoxedPrimitiveLabel(AbstractNode node, Kind kind, Value primitive, Solver.SolverInterface c) {
+        return ObjectLabel.make(node, kind, c.getAnalysis().getContextSensitivityStrategy().makeBoxedPrimitiveHeapContext(primitive));
     }
 }

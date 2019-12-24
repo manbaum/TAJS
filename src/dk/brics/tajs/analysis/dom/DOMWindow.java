@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,34 +17,27 @@
 package dk.brics.tajs.analysis.dom;
 
 import dk.brics.tajs.analysis.Conversion;
-import dk.brics.tajs.analysis.EvalCache;
 import dk.brics.tajs.analysis.Exceptions;
+import dk.brics.tajs.analysis.FunctionCalls;
 import dk.brics.tajs.analysis.FunctionCalls.CallInfo;
 import dk.brics.tajs.analysis.InitialStateBuilder;
-import dk.brics.tajs.analysis.NativeFunctions;
+import dk.brics.tajs.analysis.PropVarOperations;
 import dk.brics.tajs.analysis.Solver;
+import dk.brics.tajs.analysis.dom.html5.MediaQueryList;
 import dk.brics.tajs.analysis.dom.style.CSSStyleDeclaration;
-import dk.brics.tajs.analysis.uneval.NormalForm;
-import dk.brics.tajs.analysis.uneval.UnevalTools;
-import dk.brics.tajs.flowgraph.FlowGraph;
-import dk.brics.tajs.flowgraph.FlowGraphFragment;
+import dk.brics.tajs.flowgraph.EventType;
 import dk.brics.tajs.flowgraph.jsnodes.CallNode;
-import dk.brics.tajs.js2flowgraph.FlowGraphMutator;
-import dk.brics.tajs.lattice.Context;
 import dk.brics.tajs.lattice.ObjectLabel;
 import dk.brics.tajs.lattice.ObjectLabel.Kind;
 import dk.brics.tajs.lattice.State;
 import dk.brics.tajs.lattice.Value;
 import dk.brics.tajs.options.Options;
-import dk.brics.tajs.solver.NodeAndContext;
-import dk.brics.tajs.unevalizer.Unevalizer;
-import dk.brics.tajs.unevalizer.UnevalizerLimitations;
+import dk.brics.tajs.unevalizer.SimpleUnevalizerAPI;
+import dk.brics.tajs.unevalizer.UnevalizerAPI;
 import dk.brics.tajs.util.AnalysisException;
-import dk.brics.tajs.util.Strings;
+import dk.brics.tajs.util.AnalysisLimitationException;
 import org.apache.log4j.Logger;
 
-import java.io.File;
-import java.io.PrintWriter;
 import java.util.Set;
 
 import static dk.brics.tajs.analysis.dom.DOMFunctions.createDOMFunction;
@@ -60,25 +53,43 @@ public class DOMWindow {
 
     public static ObjectLabel WINDOW;
 
+    public static ObjectLabel WINDOW_CONSTRUCTOR;
+
+    public static ObjectLabel WINDOW_PROTOTYPE;
+
+    public static ObjectLabel CHROME;
+
     public static ObjectLabel HISTORY;
 
     public static ObjectLabel LOCATION;
 
     public static ObjectLabel NAVIGATOR;
 
-    public static ObjectLabel SCREEN;
+    public static ObjectLabel PERFORMANCE;
 
-    public static ObjectLabel JSON;
+    public static ObjectLabel SCREEN;
 
     public static void build(Solver.SolverInterface c) {
         State s = c.getState();
-        HISTORY = new ObjectLabel(DOMObjects.WINDOW_HISTORY, Kind.OBJECT);
-        LOCATION = new ObjectLabel(DOMObjects.WINDOW_LOCATION, Kind.OBJECT);
-        NAVIGATOR = new ObjectLabel(DOMObjects.WINDOW_NAVIGATOR, Kind.OBJECT);
-        SCREEN = new ObjectLabel(DOMObjects.WINDOW_SCREEN, Kind.OBJECT);
-        JSON = new ObjectLabel(DOMObjects.WINDOW_JSON, Kind.OBJECT);
+        PropVarOperations pv = c.getAnalysis().getPropVarOperations();
+
+        WINDOW_CONSTRUCTOR = ObjectLabel.make(DOMObjects.WINDOW_CONSTRUCTOR, Kind.FUNCTION);
+        WINDOW_PROTOTYPE = ObjectLabel.make(DOMObjects.WINDOW_PROTOTYPE, Kind.OBJECT);
+        CHROME = ObjectLabel.make(DOMObjects.WINDOW_CHROME, Kind.OBJECT);
+        HISTORY = ObjectLabel.make(DOMObjects.WINDOW_HISTORY, Kind.OBJECT);
+        LOCATION = ObjectLabel.make(DOMObjects.WINDOW_LOCATION, Kind.OBJECT);
+        NAVIGATOR = ObjectLabel.make(DOMObjects.WINDOW_NAVIGATOR, Kind.OBJECT);
+        PERFORMANCE = ObjectLabel.make(DOMObjects.WINDOW_PERFORMANCE, Kind.OBJECT);
+        SCREEN = ObjectLabel.make(DOMObjects.WINDOW_SCREEN, Kind.OBJECT);
 
         // NB: The WINDOW object has already been instantiated.
+
+        // Window constructor Object
+        s.newObject(WINDOW_CONSTRUCTOR);
+        pv.writePropertyWithAttributes(WINDOW_CONSTRUCTOR, "length", Value.makeNum(0).setAttributes(true, true, true));
+        pv.writePropertyWithAttributes(WINDOW_CONSTRUCTOR, "prototype", Value.makeObject(WINDOW_PROTOTYPE).setAttributes(true, true, true));
+        s.writeInternalPrototype(WINDOW_CONSTRUCTOR, Value.makeObject(InitialStateBuilder.OBJECT_PROTOTYPE));
+        createDOMProperty(WINDOW, "Window", Value.makeObject(WINDOW_CONSTRUCTOR), c);
 
         /*
          * Properties.
@@ -88,6 +99,7 @@ public class DOMWindow {
         createDOMProperty(WINDOW, "innerWidth", Value.makeAnyNumUInt(), c);
         createDOMProperty(WINDOW, "length", Value.makeAnyNumUInt(), c);
         createDOMProperty(WINDOW, "name", Value.makeAnyStr(), c);
+        createDOMProperty(WINDOW, "opener", Value.makeNull(), c);
         createDOMProperty(WINDOW, "outerHeight", Value.makeAnyNumUInt(), c);
         createDOMProperty(WINDOW, "outerWidth", Value.makeAnyNumUInt(), c);
         createDOMProperty(WINDOW, "pageXOffset", Value.makeAnyNumUInt(), c);
@@ -104,6 +116,12 @@ public class DOMWindow {
         createDOMProperty(WINDOW, "top", Value.makeObject(WINDOW), c);
         createDOMProperty(WINDOW, "window", Value.makeObject(WINDOW), c);
 
+        createDOMProperty(WINDOW, "onfocus", Value.makeNull(), c);
+        createDOMProperty(WINDOW, "ontransitionend", Value.makeNull(), c);
+        createDOMProperty(WINDOW, "onwebkittransitionend", Value.makeNull(), c);
+        createDOMProperty(WINDOW, "onanimationend", Value.makeNull(), c);
+        createDOMProperty(WINDOW, "onwebkitanimationend", Value.makeNull(), c);
+
         /*
          * Functions.
          */
@@ -117,6 +135,7 @@ public class DOMWindow {
         createDOMFunction(WINDOW, DOMObjects.WINDOW_CLEAR_TIMEOUT, "clearTimeout", 0, c);
         createDOMFunction(WINDOW, DOMObjects.WINDOW_CLOSE, "close", 0, c);
         createDOMFunction(WINDOW, DOMObjects.WINDOW_CONFIRM, "confirm", 1, c);
+        createDOMFunction(WINDOW, DOMObjects.WINDOW_DISPATCHEVENT, "dispatchEvent", 1, c);
         createDOMFunction(WINDOW, DOMObjects.WINDOW_ESCAPE, "escape", 1, c);
         createDOMFunction(WINDOW, DOMObjects.WINDOW_FOCUS, "focus", 0, c);
         createDOMFunction(WINDOW, DOMObjects.WINDOW_FORWARD, "forward", 0, c);
@@ -143,6 +162,24 @@ public class DOMWindow {
         // DOM LEVEL 2
         createDOMFunction(WINDOW, DOMObjects.WINDOW_GET_COMPUTED_STYLE, "getComputedStyle", 0, c);
 
+        createDOMFunction(WINDOW, DOMObjects.WINDOW_CANCEL_ANIM_FRAME, "cancelAnimFrame", 1, c);
+        createDOMFunction(WINDOW, DOMObjects.WINDOW_CANCEL_ANIMATION_FRAME, "cancelAnimationFrame", 1, c);
+        createDOMFunction(WINDOW, DOMObjects.WINDOW_REQUEST_ANIMATION_FRAME, "requestAnimationFrame", 1, c);
+        createDOMFunction(WINDOW, DOMObjects.WINDOW_WEBKIT_REQUEST_ANIMATION_FRAME, "webkitRequestAnimationFrame", 1, c);
+        createDOMFunction(WINDOW, DOMObjects.WINDOW_MATCH_MEDIA, "matchMedia", 1, c);
+
+        /*
+         * WINDOW CHROME object
+         */
+        s.newObject(CHROME);
+        s.writeInternalPrototype(CHROME, Value.makeObject(InitialStateBuilder.OBJECT_PROTOTYPE));
+
+        // Properties
+        createDOMProperty(WINDOW, "chrome", Value.makeObject(CHROME), c);
+
+        // Functions
+        createDOMFunction(CHROME, DOMObjects.WINDOW_CHROME_LOAD_TIMES, "loadTimes", 0, c);
+
         /*
          * WINDOW HISTORY object
          */
@@ -155,6 +192,8 @@ public class DOMWindow {
         createDOMFunction(HISTORY, DOMObjects.WINDOW_HISTORY_BACK, "back", 0, c);
         createDOMFunction(HISTORY, DOMObjects.WINDOW_HISTORY_FORWARD, "forward", 0, c);
         createDOMFunction(HISTORY, DOMObjects.WINDOW_HISTORY_GO, "go", 1, c);
+        createDOMFunction(HISTORY, DOMObjects.WINDOW_HISTORY_PUSH_STATE, "pushState", 3, c);
+        createDOMFunction(HISTORY, DOMObjects.WINDOW_HISTORY_REPLACE_STATE, "replaceState", 3, c);
 
         /*
          * WINDOW LOCATION object
@@ -168,6 +207,7 @@ public class DOMWindow {
         createDOMProperty(LOCATION, "host", Value.makeAnyStr(), c);
         createDOMProperty(LOCATION, "hostname", Value.makeAnyStr(), c);
         createDOMProperty(LOCATION, "href", Value.makeAnyStr(), c);
+        createDOMProperty(LOCATION, "origin", Value.makeAnyStr(), c);
         createDOMProperty(LOCATION, "pathname", Value.makeAnyStr(), c);
         createDOMProperty(LOCATION, "port", Value.makeAnyStr(), c);
         createDOMProperty(LOCATION, "protocol", Value.makeAnyStr(), c);
@@ -185,11 +225,35 @@ public class DOMWindow {
         s.newObject(NAVIGATOR);
         s.writeInternalPrototype(NAVIGATOR, Value.makeObject(InitialStateBuilder.OBJECT_PROTOTYPE));
         createDOMProperty(WINDOW, "navigator", Value.makeObject(NAVIGATOR), c);
+
         // Properties.
-        createDOMProperty(NAVIGATOR, "product", Value.makeAnyStr(), c);
         createDOMProperty(NAVIGATOR, "appName", Value.makeAnyStr(), c);
         createDOMProperty(NAVIGATOR, "appVersion", Value.makeAnyStr(), c);
+        createDOMProperty(NAVIGATOR, "language", Value.makeAnyStr(), c);
+        createDOMProperty(NAVIGATOR, "platform", Value.makeAnyStr(), c);
+        createDOMProperty(NAVIGATOR, "product", Value.makeAnyStr(), c);
         createDOMProperty(NAVIGATOR, "userAgent", Value.makeAnyStr(), c);
+        createDOMProperty(NAVIGATOR, "vendor", Value.makeAnyStr(), c);
+
+        /*
+         * WINDOW PERFORMANCE object
+         */
+        s.newObject(PERFORMANCE);
+        s.writeInternalPrototype(PERFORMANCE, Value.makeObject(InitialStateBuilder.OBJECT_PROTOTYPE));
+        createDOMProperty(WINDOW, "performance", Value.makeObject(PERFORMANCE), c);
+
+        // Functions.
+        createDOMFunction(PERFORMANCE, DOMObjects.WINDOW_PERFORMANCE_NOW, "now", 0, c);
+
+        /*
+         * WINDOW PERFORMANCE object
+         */
+        s.newObject(PERFORMANCE);
+        s.writeInternalPrototype(PERFORMANCE, Value.makeObject(InitialStateBuilder.OBJECT_PROTOTYPE));
+        createDOMProperty(WINDOW, "performance", Value.makeObject(PERFORMANCE), c);
+
+        // Functions.
+        createDOMFunction(PERFORMANCE, DOMObjects.WINDOW_PERFORMANCE_NOW, "now", 0, c);
 
         /*
          * WINDOW SCREEN object
@@ -209,13 +273,6 @@ public class DOMWindow {
         createDOMProperty(SCREEN, "top", Value.makeAnyNumUInt(), c);
         createDOMProperty(SCREEN, "width", Value.makeAnyNumUInt(), c);
 
-        /*
-         * WINDOW JSON object
-         */
-        s.newObject(JSON);
-        s.writeInternalPrototype(JSON, Value.makeObject(InitialStateBuilder.OBJECT_PROTOTYPE));
-        createDOMProperty(WINDOW, "JSON", Value.makeObject(JSON), c); // TODO: DOMSpec.LEVEL_0?
-        createDOMFunction(JSON, DOMObjects.WINDOW_JSON_PARSE, "parse", 1, c); // TODO: DOMSpec.LEVEL_0?
     }
 
     public static Value evaluate(DOMObjects nativeObject, final CallInfo call, Solver.SolverInterface c) {
@@ -223,126 +280,132 @@ public class DOMWindow {
         // TODO: check that parameters are numbers? (same for many other DOM functions...)
         switch (nativeObject) {
             case WINDOW_ALERT: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 1, 1);
-                Conversion.toString(NativeFunctions.readParameter(call, s, 0), c);
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 1);
+                Conversion.toString(FunctionCalls.readParameter(call, s, 0), c);
                 return Value.makeUndef();
             }
             case WINDOW_ATOB: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 1, 1);
-                Conversion.toString(NativeFunctions.readParameter(call, s, 0), c);
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 1);
+                Conversion.toString(FunctionCalls.readParameter(call, s, 0), c);
                 return Value.makeAnyStr();
             }
             case WINDOW_BACK: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 0, 0);
+                DOMFunctions.expectParameters(nativeObject, call, c, 0, 0);
                 return Value.makeUndef();
             }
             case WINDOW_BLUR: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 0, 0);
+                DOMFunctions.expectParameters(nativeObject, call, c, 0, 0);
                 return Value.makeUndef();
             }
             case WINDOW_BTOA: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 1, 1);
-                Conversion.toString(NativeFunctions.readParameter(call, s, 0), c);
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 1);
+                Conversion.toString(FunctionCalls.readParameter(call, s, 0), c);
                 return Value.makeAnyStr();
             }
             case WINDOW_CLOSE: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 0, 0);
+                DOMFunctions.expectParameters(nativeObject, call, c, 0, 0);
                 return Value.makeUndef();
             }
             case WINDOW_CLEAR_INTERVAL: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 1, 1);
-                Conversion.toInteger(NativeFunctions.readParameter(call, s, 0), c);
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 1);
+                Conversion.toInteger(FunctionCalls.readParameter(call, s, 0), c);
                 // TODO: Fix Later: Event Handlers cannot be removed.
                 return Value.makeUndef();
             }
             case WINDOW_CLEAR_TIMEOUT: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 1, 1);
-                Conversion.toInteger(NativeFunctions.readParameter(call, s, 0), c);
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 1);
+                Conversion.toInteger(FunctionCalls.readParameter(call, s, 0), c);
                 // TODO: Fix Later: Event Handlers cannot be removed.
                 return Value.makeUndef();
             }
             case WINDOW_CONFIRM: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 1, 1);
-                Conversion.toString(NativeFunctions.readParameter(call, s, 0), c);
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 1);
+                Conversion.toString(FunctionCalls.readParameter(call, s, 0), c);
+                return Value.makeAnyBool();
+            }
+            case WINDOW_DISPATCHEVENT: {
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 1);
                 return Value.makeAnyBool();
             }
             case WINDOW_ESCAPE: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 1, 1);
-                Conversion.toString(NativeFunctions.readParameter(call, s, 0), c);
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 1);
+                Conversion.toString(FunctionCalls.readParameter(call, s, 0), c);
                 return Value.makeAnyStr();
             }
             case WINDOW_FOCUS: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 0, 0);
+                DOMFunctions.expectParameters(nativeObject, call, c, 0, 0);
                 return Value.makeUndef();
             }
             case WINDOW_FORWARD: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 0, 0);
+                DOMFunctions.expectParameters(nativeObject, call, c, 0, 0);
                 return Value.makeUndef();
             }
             case WINDOW_HISTORY_BACK: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 0, 0);
+                DOMFunctions.expectParameters(nativeObject, call, c, 0, 0);
                 return Value.makeUndef();
             }
             case WINDOW_HISTORY_FORWARD: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 0, 0);
+                DOMFunctions.expectParameters(nativeObject, call, c, 0, 0);
                 return Value.makeUndef();
             }
             case WINDOW_HISTORY_GO: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 1, 1);
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 1);
             /* Value v =*/
-                Conversion.toNumber(NativeFunctions.readParameter(call, s, 0), c);
+                Conversion.toNumber(FunctionCalls.readParameter(call, s, 0), c);
+                return Value.makeUndef();
+            }
+            case WINDOW_HISTORY_PUSH_STATE: {
+                DOMFunctions.expectParameters(nativeObject, call, c, 2, 3);
+                return Value.makeUndef();
+            }
+            case WINDOW_HISTORY_REPLACE_STATE: {
+                DOMFunctions.expectParameters(nativeObject, call, c, 2, 3);
                 return Value.makeUndef();
             }
             case WINDOW_HOME: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 0, 0);
+                DOMFunctions.expectParameters(nativeObject, call, c, 0, 0);
                 return Value.makeUndef();
             }
             case WINDOW_LOCATION_ASSIGN: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 1, 1);
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 1);
             /* Value url =*/
-                Conversion.toString(NativeFunctions.readParameter(call, s, 0), c);
+                Conversion.toString(FunctionCalls.readParameter(call, s, 0), c);
                 return Value.makeUndef();
             }
-            case WINDOW_JSON_PARSE: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 1, 1);
-            /* Value data =*/
-                NativeFunctions.readParameter(call, s, 0);
-                return DOMFunctions.makeAnyJSONObject(c);
-            }
             case WINDOW_LOCATION_RELOAD: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 1, 1);
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 1);
             /* Value url =*/
-                Conversion.toBoolean(NativeFunctions.readParameter(call, s, 0));
+                Conversion.toBoolean(FunctionCalls.readParameter(call, s, 0));
                 return Value.makeUndef();
             }
             case WINDOW_LOCATION_REPLACE: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 1, 1);
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 1);
             /* Value url =*/
-                Conversion.toString(NativeFunctions.readParameter(call, s, 0), c);
+                Conversion.toString(FunctionCalls.readParameter(call, s, 0), c);
                 return Value.makeUndef();
             }
             case WINDOW_LOCATION_TOSTRING: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 0, 0);
+                DOMFunctions.expectParameters(nativeObject, call, c, 0, 0);
                 return Value.makeAnyStr();
             }
             case WINDOW_MAXIMIZE: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 0, 0);
+                DOMFunctions.expectParameters(nativeObject, call, c, 0, 0);
                 return Value.makeUndef();
             }
             case WINDOW_MINIMIZE: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 0, 0);
+                DOMFunctions.expectParameters(nativeObject, call, c, 0, 0);
                 return Value.makeUndef();
             }
             case WINDOW_MOVEBY: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 2, 2);
-                Conversion.toNumber(NativeFunctions.readParameter(call, s, 0), c);
-                Conversion.toNumber(NativeFunctions.readParameter(call, s, 1), c);
+                DOMFunctions.expectParameters(nativeObject, call, c, 2, 2);
+                Conversion.toNumber(FunctionCalls.readParameter(call, s, 0), c);
+                Conversion.toNumber(FunctionCalls.readParameter(call, s, 1), c);
                 return Value.makeUndef();
             }
             case WINDOW_MOVETO: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 2, 2);
-                Conversion.toNumber(NativeFunctions.readParameter(call, s, 0), c);
-                Conversion.toNumber(NativeFunctions.readParameter(call, s, 1), c);
+                DOMFunctions.expectParameters(nativeObject, call, c, 2, 2);
+                Conversion.toNumber(FunctionCalls.readParameter(call, s, 0), c);
+                Conversion.toNumber(FunctionCalls.readParameter(call, s, 1), c);
                 return Value.makeUndef();
             }
             case WINDOW_OPEN: {
@@ -351,68 +414,72 @@ public class DOMWindow {
                 }
                 return Value.makeObject(WINDOW);
             }
+            case WINDOW_PERFORMANCE_NOW: {
+                DOMFunctions.expectParameters(nativeObject, call, c, 0, 0);
+                return Value.makeAnyNum();
+            }
             case WINDOW_PRINT: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 0, 0);
+                DOMFunctions.expectParameters(nativeObject, call, c, 0, 0);
                 return Value.makeUndef();
             }
             case WINDOW_PROMPT: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 1, 2);
-                Conversion.toString(NativeFunctions.readParameter(call, s, 0), c);
-                Conversion.toString(NativeFunctions.readParameter(call, s, 1), c);
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 2);
+                Conversion.toString(FunctionCalls.readParameter(call, s, 0), c);
+                Conversion.toString(FunctionCalls.readParameter(call, s, 1), c);
                 return Value.makeAnyStr();
             }
             case WINDOW_RESIZEBY: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 2, 2);
-                Conversion.toNumber(NativeFunctions.readParameter(call, s, 0), c);
-                Conversion.toNumber(NativeFunctions.readParameter(call, s, 1), c);
+                DOMFunctions.expectParameters(nativeObject, call, c, 2, 2);
+                Conversion.toNumber(FunctionCalls.readParameter(call, s, 0), c);
+                Conversion.toNumber(FunctionCalls.readParameter(call, s, 1), c);
                 return Value.makeUndef();
             }
             case WINDOW_RESIZETO: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 2, 2);
-                Conversion.toNumber(NativeFunctions.readParameter(call, s, 0), c);
-                Conversion.toNumber(NativeFunctions.readParameter(call, s, 1), c);
+                DOMFunctions.expectParameters(nativeObject, call, c, 2, 2);
+                Conversion.toNumber(FunctionCalls.readParameter(call, s, 0), c);
+                Conversion.toNumber(FunctionCalls.readParameter(call, s, 1), c);
                 return Value.makeUndef();
             }
             case WINDOW_SCROLL: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 2, 2);
-                Conversion.toNumber(NativeFunctions.readParameter(call, s, 0), c);
-                Conversion.toNumber(NativeFunctions.readParameter(call, s, 1), c);
+                DOMFunctions.expectParameters(nativeObject, call, c, 2, 2);
+                Conversion.toNumber(FunctionCalls.readParameter(call, s, 0), c);
+                Conversion.toNumber(FunctionCalls.readParameter(call, s, 1), c);
                 return Value.makeUndef();
             }
             case WINDOW_SCROLLBY: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 2, 2);
-                Conversion.toNumber(NativeFunctions.readParameter(call, s, 0), c);
-                Conversion.toNumber(NativeFunctions.readParameter(call, s, 1), c);
+                DOMFunctions.expectParameters(nativeObject, call, c, 2, 2);
+                Conversion.toNumber(FunctionCalls.readParameter(call, s, 0), c);
+                Conversion.toNumber(FunctionCalls.readParameter(call, s, 1), c);
                 return Value.makeUndef();
             }
             case WINDOW_SCROLLBYLINES: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 1, 1);
-                Conversion.toNumber(NativeFunctions.readParameter(call, s, 0), c);
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 1);
+                Conversion.toNumber(FunctionCalls.readParameter(call, s, 0), c);
                 return Value.makeUndef();
             }
             case WINDOW_SCROLLBYPAGES: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 1, 1);
-                Conversion.toNumber(NativeFunctions.readParameter(call, s, 0), c);
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 1);
+                Conversion.toNumber(FunctionCalls.readParameter(call, s, 0), c);
                 return Value.makeUndef();
             }
             case WINDOW_SCROLLTO: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 2, 2);
-                Conversion.toNumber(NativeFunctions.readParameter(call, s, 0), c);
-                Conversion.toNumber(NativeFunctions.readParameter(call, s, 1), c);
+                DOMFunctions.expectParameters(nativeObject, call, c, 2, 2);
+                Conversion.toNumber(FunctionCalls.readParameter(call, s, 0), c);
+                Conversion.toNumber(FunctionCalls.readParameter(call, s, 1), c);
                 return Value.makeUndef();
             }
             case WINDOW_STOP: {
-                s.setToNone();
+                s.setToBottom();
                 return Value.makeNone();
             }
             case WINDOW_SET_INTERVAL:
             case WINDOW_SET_TIMEOUT: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 2, 2);
+                DOMFunctions.expectParameters(nativeObject, call, c, 2, 2);
                 if (!call.isUnknownNumberOfArgs() && call.getNumberOfArgs() == 0) {
                     return Value.makeUndef();
                 }
-                Value callbackParameter = NativeFunctions.readParameter(call, s, 0);
-                Conversion.toNumber(NativeFunctions.readParameter(call, s, 1), c);
+                Value callbackParameter = FunctionCalls.readParameter(call, s, 0);
+                Conversion.toNumber(FunctionCalls.readParameter(call, s, 1), c);
 
                 // split into two cases: functions and non-functions (to be unevaled)
                 Set<ObjectLabel> functionLabels = newSet();
@@ -428,58 +495,52 @@ public class DOMWindow {
                 Value allCallbacks = Value.makeObject(functionLabels);
 
                 if (!c.isScanning()) {
-                    if (!callbackSourceCode.isNotStr()) {
-                        if (Options.get().isUnevalizerEnabled()) {
-                            CallNode callNode = (CallNode) call.getSourceNode(); // FIXME: may not be CallNode?
-                            FlowGraph currFg = c.getFlowGraph();
-                            NormalForm nf = UnevalTools.rebuildNormalForm(currFg, callNode, s, c);
-
-                            String uneval_input = callbackSourceCode.getStr() != null ? "\"" + Strings.escapeSource(callbackSourceCode.getStr()) + "\"" : nf.getNormalForm();
-                            String unevaled = new Unevalizer().uneval(UnevalTools.unevalizerCallback(currFg, c, callNode, nf), uneval_input, false, null, call.getSourceNode(), c);
-                            if (unevaled == null) {
-                                return UnevalizerLimitations.handle("Could not uneval setTimeout/setInterval string (you should use higher-order functions instead): " + uneval_input, call.getSourceNode(), Value.makeAnyNumUInt(), c);
-                            }
-                            log.debug("Unevalized:" + unevaled);
-
-                            if (callbackSourceCode.getStr() == null) // Called with non-constant.
-                                unevaled = UnevalTools.rebuildFullFromMapping(currFg, unevaled, nf.getMapping(), callNode);
-
-                            EvalCache evalCache = c.getAnalysis().getEvalCache(); // TODO: refactor to avoid duplicated code (see JSFunction.FUNCTION and JSGlobal.EVAL)
-                            NodeAndContext<Context> cc = new NodeAndContext<>(callNode, s.getContext());
-                            FlowGraphFragment e = evalCache.getCode(cc);
-
-                            // Cache miss.
-                            if (e == null || !e.getKey().equals(unevaled)) {
-                                e = FlowGraphMutator.extendFlowGraph(currFg, unevaled, unevaled, e, callNode, true, null);
-                            }
-
-                            ObjectLabel callbackUnevaled = new ObjectLabel(e.getEntryFunction());
-                            allCallbacks = allCallbacks.join(Value.makeObject(callbackUnevaled));
-                            evalCache.setCode(cc, e);
-                            if (Options.get().isFlowGraphEnabled()) {
-                                try (PrintWriter pw = new PrintWriter(new File("out" + File.separator + "flowgraphs" + File.separator + "uneval-" +
-                                        callNode.getIndex() + "-" + Integer.toHexString(s.getContext().hashCode()) + ".dot"))) {
-                                    currFg.toDot(pw);
-                                    pw.flush();
-                                } catch (Exception ee) {
-                                    throw new AnalysisException(ee);
+                    if (!callbackSourceCode.isNone()) {
+                        if (callbackSourceCode.isMaybeSingleStr()) {
+                            allCallbacks = allCallbacks.join(SimpleUnevalizerAPI.createSetTimeOutOrSetIntervalFunction(call.getSourceNode(), callbackSourceCode.getStr(), c));
+                        } else if (Options.get().isUnevalizerEnabled()) {
+                            if (call.getSourceNode() instanceof CallNode) {
+                                CallNode callNode = (CallNode) call.getSourceNode();
+                                Value vCallbackUnevaled = UnevalizerAPI.evaluateSetTimeoutSetIntervalStringCall(call, c, s, callbackSourceCode, callNode);
+                                allCallbacks = allCallbacks.join(vCallbackUnevaled);
+                            } else {
+                                if (!c.getAnalysis().getUnsoundness().mayIgnoreEvalCallAtNonCallNode(call.getSourceNode())) {
+                                    throw new AnalysisLimitationException.AnalysisModelLimitationException(call.getSourceNode().getSourceLocation() + ": Invoking setTimeout/setInterval from non-CallNode - unevalizer can't handle that");
                                 }
                             }
                         } else
-                            throw new UnsupportedOperationException("Can't handle arbitrary strings in setInterval/setTimeout. Try with -uneval");
+                            throw new AnalysisLimitationException.AnalysisModelLimitationException(call.getJSSourceNode().getSourceLocation() + ": Can't handle arbitrary strings in setInterval/setTimeout. Try with -uneval");
                     }
-                    DOMEvents.addTimeoutEventHandler(s, allCallbacks.getObjectLabels());
+                    DOMEvents.addEventHandler(allCallbacks, EventType.TIMEOUT, c);
                 }
                 return Value.makeAnyNumUInt();
             }
             case WINDOW_UNESCAPE: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 1, 1);
-                Conversion.toString(NativeFunctions.readParameter(call, s, 0), c);
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 1);
+                Conversion.toString(FunctionCalls.readParameter(call, s, 0), c);
                 return Value.makeAnyStr();
             }
             case WINDOW_GET_COMPUTED_STYLE: {
-                NativeFunctions.expectParameters(nativeObject, call, c, 1, 2);
-                return Value.makeObject(CSSStyleDeclaration.STYLEDECLARATION);
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 2);
+                return Value.makeObject(CSSStyleDeclaration.INSTANCES);
+            }
+            case WINDOW_CANCEL_ANIM_FRAME: {
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 1);
+                return Value.makeUndef();
+            }
+            case WINDOW_CANCEL_ANIMATION_FRAME: {
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 1);
+                return Value.makeUndef();
+            }
+            case WINDOW_REQUEST_ANIMATION_FRAME:
+            case WINDOW_WEBKIT_REQUEST_ANIMATION_FRAME: {
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 1);
+                return Value.makeUndef();
+            }
+            case WINDOW_MATCH_MEDIA: {
+                DOMFunctions.expectParameters(nativeObject, call, c, 1, 1);
+                Conversion.toString(FunctionCalls.readParameter(call, s, 0), c);
+                return Value.makeObject(MediaQueryList.INSTANCES);
             }
             default: {
                 throw new AnalysisException("Unsupported Native Object: " + nativeObject);

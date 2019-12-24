@@ -1,0 +1,80 @@
+fg2: <main> function()
+  block 0: [entry]
+    node 0: constant[undefined,v1] (test-resources/src/flowgraphbuilder/flowgraph_builder0110.js)
+    node 1: vardecl['x'] (test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:1:5)
+    node 2: vardecl['y'] (test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:2:5)
+    ->[block 1]
+  block 1:
+    node 3: constant["tajs-host-env:string-replace-model.js",v2] (host-environment-sources-loader)
+    node 4: constant[true,v3] (host-environment-sources-loader)
+    ->[block 2]
+  block 2:
+    node 5: call[TAJS_load,v2,v3,v4] (host-environment-sources-loader)
+    ->[block 3]
+  block 3:
+    node 6: call[-,v4,-] (host-environment-sources-loader)
+    ->[block 4]
+  block 4:
+    node 7: constant["tajs-host-env:error-captureStackTrace-model.js",v5] (host-environment-sources-loader)
+    node 8: constant[true,v6] (host-environment-sources-loader)
+    ->[block 5]
+  block 5:
+    node 9: call[TAJS_load,v5,v6,v7] (host-environment-sources-loader)
+    ->[block 6]
+  block 6:
+    node 10: call[-,v7,-] (host-environment-sources-loader)
+    ->[block 7]
+  block 7:
+    node 11: new[v8] (test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:1:9)
+    node 12: constant[42.0,v9] (test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:1:12)
+    node 13: write-property[v8,'a',v9] (test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:1:10)
+    node 14: write-variable[v8,'x'] (test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:1:5)
+    node 15: new[v10] (test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:2:9)
+    node 16: constant[42.0,v11] (test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:2:12)
+    node 17: write-property[v10,'b',v11] (test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:2:10)
+    node 18: write-variable[v10,'y'] (test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:2:5)
+    node 19: read-variable['z',v16,-] (test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:4:12)
+    node 20: if[v16](true-block:8,false-block:9) (test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:4:12)
+    ->[block 8,block 9]
+  block 8:
+    node 21: read-variable['x',v12,-] (test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:4:16)
+    ->[block 10]
+  block 9:
+    node 22: read-variable['y',v12,-] (test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:4:20)
+    ->[block 10]
+  block 10:
+    node 23: begin-for-in[v12,v13] (test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:4:1)
+    ->[block 11]
+  block 11:
+    node 24: has-next[v13,v14] (test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:4:1)
+    node 25: if[v14](true-block:12,false-block:15) (test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:4:1)
+    ->[block 12,block 15] ~>[block 13]
+  block 12:
+    node 26: next-property[v13,v15] (test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:4:6)
+    node 27: write-variable[v15,'b'] (test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:4:6)
+    ->[block 14] ~>[block 13]
+  block 13:
+    node 28: end-for-in(begin-node:23) (test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:4:1)
+    ->[block 17]
+  block 14:
+    node 29: end-for-in(begin-node:23) (test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:4:1)
+    ->[block 10]
+  block 15:
+    node 30: end-for-in(begin-node:23) (test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:4:1)
+    ->[block 16]
+  block 16: [exit-ordinary]
+    node 31: return[v1] (test-resources/src/flowgraphbuilder/flowgraph_builder0110.js)
+    ->[]
+  block 17: [exit-exceptional]
+    node 32: exceptional-return (test-resources/src/flowgraphbuilder/flowgraph_builder0110.js)
+    ->[]
+
+test-resources/src/flowgraphbuilder/flowgraph_builder0110.js: [definite] Ordinary program exit is unreachable
+test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:4:12: [definite] ReferenceError, reading absent variable z
+test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:1:10: [definite] Dead assignment, property a is never read
+test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:2:10: [definite] Dead assignment, property b is never read
+test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:1:5: [definite] The variable x is never used
+test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:2:5: [definite] The variable y is never used
+test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:4:12: [definite] Unreachable code
+test-resources/src/flowgraphbuilder/flowgraph_builder0110.js: [maybe] Uncaught exception, constructed at [test-resources/src/flowgraphbuilder/flowgraph_builder0110.js:4:12]
+Soundness testing succeeded for 3 checks (with 0 expected failures)

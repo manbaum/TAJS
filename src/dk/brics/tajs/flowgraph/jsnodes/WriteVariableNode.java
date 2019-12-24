@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -80,8 +80,8 @@ public class WriteVariableNode extends Node {
     @Override
     public void check(BasicBlock b) {
         if (value_reg == NO_VALUE)
-            throw new AnalysisException("Invalid source register: " + toString());
+            throw new AnalysisException("Invalid source register: " + this);
         if (varname == null || varname.isEmpty())
-            throw new AnalysisException("Variable name is null: " + toString());
+            throw new AnalysisException("Variable name is null: " + this);
     }
 }

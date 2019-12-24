@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,53 +16,115 @@
 
 package dk.brics.tajs.analysis.dom;
 
+import dk.brics.tajs.analysis.FunctionCalls;
+import dk.brics.tajs.analysis.InitialStateBuilder;
+import dk.brics.tajs.analysis.PropVarOperations;
+import dk.brics.tajs.analysis.Solver;
+import dk.brics.tajs.flowgraph.AbstractNode;
+import dk.brics.tajs.flowgraph.EventType;
+import dk.brics.tajs.flowgraph.jsnodes.EventDispatcherNode;
 import dk.brics.tajs.lattice.ObjectLabel;
 import dk.brics.tajs.lattice.State;
 import dk.brics.tajs.lattice.UnknownValueResolver;
 import dk.brics.tajs.lattice.Value;
+import dk.brics.tajs.options.Options;
+import dk.brics.tajs.solver.Message;
+import dk.brics.tajs.util.AnalysisException;
 import dk.brics.tajs.util.Collections;
 import org.apache.log4j.Logger;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Set;
+
+import static dk.brics.tajs.util.Collections.newList;
+import static dk.brics.tajs.util.Collections.newSet;
+import static dk.brics.tajs.util.Collections.singleton;
 
 public class DOMEvents {
 
     private static final Logger log = Logger.getLogger(DOMEvents.class);
 
+    private static Value domContentLoadedEvent;
+
+    private static Value loadEvent;
+
+    private static Value keyboardEvent;
+
+    private static Value mouseEvent;
+
+    private static Value ajaxEvent;
+
+    private static Value anyEvent;
+
+    private static Value timeoutEvent;
+
+    private static Value unloadEvent;
+
+    public static void build() {
+        anyEvent = createAnyEvent();
+        domContentLoadedEvent = createAnyDOMContentLoadedEvent();
+        loadEvent = createAnyLoadEvent();
+        timeoutEvent = Value.makeNone();
+        unloadEvent = Value.makeNone();
+        if (Options.get().isSingleEventHandlerType()) {
+            keyboardEvent = anyEvent;
+        } else {
+            keyboardEvent = createAnyKeyboardEvent();
+        }
+        if (Options.get().isSingleEventHandlerType()) {
+            mouseEvent = anyEvent;
+        } else {
+            mouseEvent = createAnyMouseEvent();
+        }
+        if (Options.get().isSingleEventHandlerType()) {
+            ajaxEvent = anyEvent;
+        } else {
+            ajaxEvent = createAnyAjaxEvent();
+        }
+    }
+
     /**
      * Create generic Keyboard Event.
      */
-    public static Value createAnyKeyboardEvent() {
+    private static Value createAnyKeyboardEvent() {
         return Value.makeObject(DOMRegistry.getKeyboardEventLabel());
     }
 
     /**
      * Create generic Mouse Event.
      */
-    public static Value createAnyMouseEvent() {
+    private static Value createAnyMouseEvent() {
         return Value.makeObject(DOMRegistry.getMouseEventLabel());
     }
 
     /**
      * Creates a generic AJAX Event.
      */
-    public static Value createAnyAjaxEvent() {
+    private static Value createAnyAjaxEvent() {
         return Value.makeObject(DOMRegistry.getAjaxEventLabel());
+    }
+
+    /**
+     * Creates a generic DOMContentLoaded Event
+     */
+    private static Value createAnyDOMContentLoadedEvent() {
+        return Value.makeObject(DOMRegistry.getDOMContentLoadedEventLabel());
     }
 
     /**
      * Creates a generic load Event
      */
-    public static Value createAnyLoadEvent() {
+    private static Value createAnyLoadEvent() {
         return Value.makeObject(DOMRegistry.getLoadEventLabel());
     }
 
     /**
      * Create a generic non-mouse, non-keyboard Event.
      */
-    public static Value createAnyEvent() {
+    private static Value createAnyEvent() {
         Set<ObjectLabel> labels = Collections.newSet();
+        labels.add(DOMRegistry.getHashChangeEventLabel()); // NB: this event does not have its own field in this class. That is deliberate since there currently is no EventType.HASH_CHANGE event type.
         labels.add(DOMRegistry.getKeyboardEventLabel());
         labels.add(DOMRegistry.getMouseEventLabel());
         labels.add(DOMRegistry.getMutationEventLabel());
@@ -74,80 +136,164 @@ public class DOMEvents {
     /**
      * Add Event Handler. (NOT Timeout Event Handlers.)
      */
-    public static void addEventHandler(Set<ObjectLabel> targets, State s, String property, Value handler, boolean asSetter) {
-        handler = UnknownValueResolver.getRealValue(handler, s);
-        Set<ObjectLabel> handlers = handler.getObjectLabels();
-        if (DOMEventHelpers.isKeyboardEventAttribute(property) || DOMEventHelpers.isKeyboardEventProperty(property)) {
-            addKeyboardEventHandler(s, handlers);
-        } else if (DOMEventHelpers.isMouseEventAttribute(property) || DOMEventHelpers.isMouseEventProperty(property)) {
-            addMouseEventHandler(s, handlers);
-        } else if (DOMEventHelpers.isLoadEventAttribute(property)) {
-            addLoadEventHandler(s, handlers);
-        } else if (DOMEventHelpers.isUnloadEventAttribute(property)) {
-            addUnloadEventHandler(s, handlers);
-        } else if (DOMEventHelpers.isOtherEventAttribute(property)) {
-            addUnknownEventHandler(s, handlers);
-        } else {
-            if (asSetter) {
-                // ignore eventhandler registration through setters for event names we are not aware of:
-                // it is likely a regular property that is being written
-                // (esp. properties on window as it is the global object!)
-                // This is unsound, see #235
-                if(log.isDebugEnabled()) {
-                    log.debug("Ignoring eventhandler registration through setter for event type: " + property);
-                }
-            }else {
-                addUnknownEventHandler(s, handlers);
-            }
+    public static void addEventHandler(Value handler, EventType kind, Solver.SolverInterface c) {
+        Collection<ObjectLabel> labels = toEventHandler(handler, c);
+        DOMRegistry.MaySets key = mapEventTypeToMaySetKey(kind);
+        c.getMonitoring().visitEventHandlerRegistration(c.getNode(), c.getState().getContext(), Value.makeObject(newSet(labels)));
+        c.getState().getExtras().addToMaySet(key.name(), labels);
+    }
+
+    private static DOMRegistry.MaySets mapEventTypeToMaySetKey(EventType kind) {
+        switch (kind) {
+            case DOM_CONTENT_LOADED:
+                return DOMRegistry.MaySets.DOM_CONTENT_LOADED_EVENT_HANDLER;
+            case LOAD:
+                return DOMRegistry.MaySets.LOAD_EVENT_HANDLER;
+            case UNLOAD:
+                return DOMRegistry.MaySets.UNLOAD_EVENT_HANDLERS;
+            case KEYBOARD:
+                return DOMRegistry.MaySets.KEYBOARD_EVENT_HANDLER;
+            case MOUSE:
+                return DOMRegistry.MaySets.MOUSE_EVENT_HANDLER;
+            case AJAX:
+                return DOMRegistry.MaySets.AJAX_EVENT_HANDLER;
+            case TIMEOUT:
+                return DOMRegistry.MaySets.TIMEOUT_EVENT_HANDLERS;
+            case OTHER: // treat as unknown
+            case UNKNOWN:
+                return DOMRegistry.MaySets.UNKNOWN_EVENT_HANDLERS;
+            default:
+                throw new AnalysisException("Unknown event handler type");
         }
     }
 
     /**
-     * Add a Keyboard Event Handler.
+     * Converts the given value to an EventHandler value.
      */
-    public static void addKeyboardEventHandler(State s, Collection<ObjectLabel> labels) {
-        s.getExtras().addToMaySet(DOMRegistry.MaySets.KEYBOARD_EVENT_HANDLER.name(), labels);
+    private static Set<ObjectLabel> toEventHandler(Value value, Solver.SolverInterface c) {
+        value = UnknownValueResolver.getRealValue(value, c.getState());
+        Set<ObjectLabel> handlers = Collections.newSet();
+        boolean maybeNonFunction = value.isMaybePrimitive();
+        for (ObjectLabel objectLabel : value.getObjectLabels()) {
+            if (objectLabel.getKind() == ObjectLabel.Kind.FUNCTION) {
+                handlers.add(objectLabel);
+            } else {
+                maybeNonFunction = true;
+            }
+        }
+        if (maybeNonFunction) {
+            c.getMonitoring().addMessage(c.getNode(), Message.Severity.HIGH, "TypeError, non-function event handler");
+        }
+        return handlers;
     }
 
-    /**
-     * Add a Mouse Event Handler.
-     */
-    public static void addMouseEventHandler(State s, Collection<ObjectLabel> labels) {
-        s.getExtras().addToMaySet(DOMRegistry.MaySets.MOUSE_EVENT_HANDLER.name(), labels);
+    private static void triggerEventHandler(AbstractNode currentNode, State currentState, EventType type, boolean requiresStateCloning, Solver.SolverInterface c, Set<ObjectLabel> handlers) {
+        Value event = getEvent(type);
+        if (Options.get().isUserEventsDisabled() && type.isUserEvent()) {
+            return;
+        }
+        if (handlers.isEmpty()) {
+            return;
+        }
+        State callState = requiresStateCloning ? currentState.clone() : currentState;
+        c.withState(callState, () -> {
+            if (log.isDebugEnabled()) {
+                for (ObjectLabel l : handlers) {
+                    log.debug("Triggering eventHandlers <" + type + ">: " + l);
+                }
+            }
+            if (!event.isNone()) {
+                // Support the unofficial window.event property that is set by the browser
+                PropVarOperations pv = c.getAnalysis().getPropVarOperations();
+                pv.writeProperty(DOMWindow.WINDOW, "event", event); // strong write to override old value
+                pv.deleteProperty(singleton(DOMWindow.WINDOW), Value.makeTemporaryStr("event"), true); // weak delete to emulate unofficial
+            }
+            Set<ObjectLabel> thisTargets;
+            if (type == EventType.TIMEOUT) {
+                thisTargets = singleton(InitialStateBuilder.GLOBAL);
+            } else {
+                thisTargets = DOMBuilder.getAllDOMEventTargets();
+            }
+            List<Value> args = event.isNone() ? newList() : Collections.singletonList(event);
+            FunctionCalls.callFunction(new FunctionCalls.EventHandlerCall(currentNode, Value.makeObject(handlers), args, thisTargets, callState), c);
+        });
     }
 
-    /**
-     * Add an AJAX Event Handler.
-     */
-    public static void addAjaxEventHandler(State s, Collection<ObjectLabel> labels) {
-        s.getExtras().addToMaySet(DOMRegistry.MaySets.AJAX_EVENT_HANDLER.name(), labels);
+    public static Value getEvent(EventType type) {
+        switch (type) {
+            case DOM_CONTENT_LOADED:
+                return domContentLoadedEvent;
+            case LOAD:
+                return loadEvent;
+            case UNLOAD:
+                return unloadEvent;
+            case KEYBOARD:
+                return keyboardEvent;
+            case MOUSE:
+                return mouseEvent;
+            case AJAX:
+                return ajaxEvent;
+            case TIMEOUT:
+                return timeoutEvent;
+            case OTHER:
+            case UNKNOWN:
+                return anyEvent;
+            default:
+                throw new AnalysisException("Unhandleded case: " + type);
+        }
     }
 
-    /**
-     * Add a Timeout Event Handler.
-     */
-    public static void addTimeoutEventHandler(State s, Collection<ObjectLabel> labels) {
-        s.getExtras().addToMaySet(DOMRegistry.MaySets.TIMEOUT_EVENT_HANDLERS.name(), labels);
+    private static void triggerEventHandler(EventType type, Solver.SolverInterface c) {
+        boolean requiresStateCloning = type == EventType.DOM_CONTENT_LOADED || type == EventType.LOAD || type == EventType.UNLOAD;
+        DOMRegistry.MaySets maysetKey = convertEventTypeToHandlerKey(type);
+        triggerEventHandler(c.getNode(), c.getState(), type, requiresStateCloning, c, c.getState().getExtras().getFromMaySet(maysetKey.name()));
     }
 
-    /**
-     * Add an Unknown Event Handler.
-     */
-    public static void addUnknownEventHandler(State s, Collection<ObjectLabel> labels) {
-        s.getExtras().addToMaySet(DOMRegistry.MaySets.UNKNOWN_EVENT_HANDLERS.name(), labels);
+    private static DOMRegistry.MaySets convertEventTypeToHandlerKey(EventType type) {
+        switch (type) {
+            case DOM_CONTENT_LOADED:
+                return DOMRegistry.MaySets.DOM_CONTENT_LOADED_EVENT_HANDLER;
+            case LOAD:
+                return DOMRegistry.MaySets.LOAD_EVENT_HANDLER;
+            case UNLOAD:
+                return DOMRegistry.MaySets.UNLOAD_EVENT_HANDLERS;
+            case KEYBOARD:
+                return DOMRegistry.MaySets.KEYBOARD_EVENT_HANDLER;
+            case MOUSE:
+                return DOMRegistry.MaySets.MOUSE_EVENT_HANDLER;
+            case UNKNOWN:
+                return DOMRegistry.MaySets.UNKNOWN_EVENT_HANDLERS;
+            case OTHER:
+                return DOMRegistry.MaySets.UNKNOWN_EVENT_HANDLERS; // TODO improve precision
+            case AJAX:
+                return DOMRegistry.MaySets.AJAX_EVENT_HANDLER;
+            case TIMEOUT:
+                return DOMRegistry.MaySets.TIMEOUT_EVENT_HANDLERS;
+            default:
+                throw new AnalysisException("Unhandled case: " + type);
+        }
     }
 
-    /**
-     * Add a Load Event Handler.
-     */
-    public static void addLoadEventHandler(State s, Collection<ObjectLabel> labels) {
-        s.getExtras().addToMaySet(DOMRegistry.MaySets.LOAD_EVENT_HANDLER.name(), labels);
-    }
-
-    /**
-     * Add a Unload Event Handler.
-     */
-    public static void addUnloadEventHandler(State s, Collection<ObjectLabel> labels) {
-        s.getExtras().addToMaySet(DOMRegistry.MaySets.UNLOAD_EVENT_HANDLERS.name(), labels);
+    public static void emit(EventDispatcherNode n, Solver.SolverInterface c) {
+        if (n.getType() == EventDispatcherNode.Type.DOM_CONTENT_LOADED) {
+            triggerEventHandler(EventType.DOM_CONTENT_LOADED, c);
+        }
+        if (n.getType() == EventDispatcherNode.Type.DOM_LOAD) {
+            triggerEventHandler(EventType.LOAD, c);
+        }
+        if (n.getType() == EventDispatcherNode.Type.DOM_UNLOAD) {
+            triggerEventHandler(EventType.UNLOAD, c);
+        }
+        if (n.getType() == EventDispatcherNode.Type.DOM_OTHER) {
+            triggerEventHandler(EventType.KEYBOARD, c);
+            triggerEventHandler(EventType.MOUSE, c);
+            triggerEventHandler(EventType.AJAX, c);
+            triggerEventHandler(EventType.UNKNOWN, c);
+            triggerEventHandler(EventType.OTHER, c);
+            triggerEventHandler(EventType.TIMEOUT, c);
+        }
+        if (n.getType() == EventDispatcherNode.Type.TYPE_TESTS) {
+            c.getAnalysis().getTypeTester().triggerTypeTests(c);
+        }
     }
 }

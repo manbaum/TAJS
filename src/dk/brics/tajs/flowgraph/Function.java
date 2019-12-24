@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,17 @@
 
 package dk.brics.tajs.flowgraph;
 
+import dk.brics.tajs.flowgraph.jsnodes.DeclareFunctionNode;
 import dk.brics.tajs.options.Options;
 import dk.brics.tajs.util.AnalysisException;
 import dk.brics.tajs.util.Strings;
 
 import java.io.PrintWriter;
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
@@ -34,7 +37,7 @@ import static dk.brics.tajs.util.Collections.newSet;
  * Function sub-graph.
  * Whenever a function has been created or modified, {@link #complete()} must be called.
  */
-public class Function {
+public class Function implements Serializable {
 
     /**
      * Unique index of this function in the flow graph, or -1 if not belonging to a flow graph.
@@ -92,19 +95,19 @@ public class Function {
     private int max_register;
 
     /**
-     * True iff this function has a syntactic 'this' in its source code.
+     * The node where this function is declared.
      */
-    private boolean uses_this;
+    private DeclareFunctionNode node;
 
     /**
-     * The variables read by the function that are defined in an outer function.
-     */
-    private Set<String> closureVariableNames;
-
-    /**
-     * The source code of the function, null if full source code is not available (e.g. eventhandlers in html)
+     * The source code of the function, null if full source code is not available (e.g. eventhandlers in html).
      */
     private final String source;
+
+    /**
+     * If this flag is set, the function has "use strict".
+     */
+    private final boolean strict;
 
     /**
      * Constructs a new function.
@@ -117,24 +120,23 @@ public class Function {
      * @param location        source location
      * @param source          full source code of function, null if not available
      */
-    public Function(String name, List<String> parameter_names, Function outer_function, SourceLocation location, String source) {
+    public Function(String name, List<String> parameter_names, Function outer_function, boolean strict, SourceLocation location, String source) {
         assert (location != null);
         this.name = name;
         this.location = location;
-        this.parameter_names = parameter_names == null ? Collections.<String>emptyList() : parameter_names;
+        this.parameter_names = parameter_names == null ? Collections.emptyList() : parameter_names;
         this.outer_function = outer_function;
         this.source = source;
         variable_names = newSet();
-        uses_this = false;
         blocks = newList();
-        closureVariableNames = newSet();
+        this.strict = strict;
     }
 
     /**
-     * @see #Function(String, List, Function, SourceLocation, String)
+     * @see #Function(String, List, Function, boolean, SourceLocation, String)
      */
     public Function(String name, List<String> parameter_names, Function outer_function, SourceLocation location) {
-        this(name, parameter_names, outer_function, location, null);
+        this(name, parameter_names, outer_function, false, location, null);
     }
 
     /**
@@ -256,6 +258,13 @@ public class Function {
     }
 
     /**
+     * Sets the source location.
+     */
+    public void setSourceLocation(SourceLocation location) {
+        this.location = location;
+    }
+
+    /**
      * Returns a source location for this function.
      */
     public SourceLocation getSourceLocation() {
@@ -316,7 +325,7 @@ public class Function {
         } else {
             pw.println("subgraph " + "cluster" + index + " {");
             String outerFunction = outer_function == null ? "" : "\\nouter: " + (outer_function.isMain() ? "<main>" : (outer_function.getName() == null ? "<anonymous>" : outer_function.getName()));
-            pw.println("label=\"" + (main ? "<main> " : "") + toString() + "\\n" + location + outerFunction + "\";");
+            pw.println("label=\"" + (main ? "<main> " : "") + this + "\\n" + location + outerFunction + "\";");
             pw.println("labelloc=\"t\";");
             pw.println("fontsize=18;");
         }
@@ -327,7 +336,7 @@ public class Function {
                 + " [tailport=s, headport=n, headlabel=\"    " + entry.getIndex() + "\"]");
         labels.add(entry);
         List<BasicBlock> sortedBlocks = newList(this.blocks);
-        java.util.Collections.sort(sortedBlocks, (o1, o2) -> o1.getOrder() - o2.getOrder());
+        sortedBlocks.sort(Comparator.comparingInt(BasicBlock::getTopologicalOrder));
         for (BasicBlock b : sortedBlocks) {
             b.toDot(pw, false);
 //	        int color_index = 0;
@@ -339,7 +348,7 @@ public class Function {
 //				pw.print(", color=" + color);
                 if (!labels.contains(bs)) {
                     labels.add(bs);
-                    pw.print(", headlabel=\"      " + bs.getIndex() /*+ (bs.hasOrder() ? "[" +bs.getOrder() + "]" : "")*/ + "\"");
+                    pw.print(", headlabel=\"      " + bs.getIndex() /*+ (bs.hasOrder() ? "[" +bs.getWorklistOrder() + "]" : "")*/ + "\"");
                 }
                 pw.println("]");
             }
@@ -378,27 +387,6 @@ public class Function {
     }
 
     /**
-     * Marks the function as having a syntactic 'this' in its source code or not.
-     */
-    public void setUsesThis(boolean uses_this) {
-        this.uses_this = uses_this;
-    }
-
-    /**
-     * Returns true if this function has a syntactic 'this' in its source code.
-     */
-    public boolean isUsesThis() {
-        return uses_this;
-    }
-
-    /**
-     * Returns the (mutable) set of variables read by the function that are defined in an outer function.
-     */
-    public Set<String> getClosureVariableNames() {
-        return closureVariableNames;
-    }
-
-    /**
      * Sets the block orders. Call after construction or modification of the function.
      */
     public void complete() {
@@ -415,67 +403,27 @@ public class Function {
             roots.remove(b.getExceptionHandler());
         });
         List<BasicBlock> rootOrder = newList(roots);
-        Collections.sort(rootOrder, (o1, o2) -> o1.getSourceLocation().compareTo(o2.getSourceLocation()));
+        rootOrder.sort(Comparator.comparing(BasicBlock::getSourceLocation, new SourceLocation.Comparator()));
 
+        // set worklist order (topological order, except for loop body entry blocks, which are delayed to reduce worklist starvation when loop-unrolling is used)
         int i = 0;
-        for (BasicBlock block : produceDependencyOrder(topologicalBlocks, nonTopologicalBlocks, rootOrder)) {
-            block.setOrder(i++);
+        for (BasicBlock block : BlockDependencyOrderer.produceDependencyOrder(topologicalBlocks, nonTopologicalBlocks, rootOrder, true)) {
+            block.setWorklistOrder(i++);
         }
-
         if (ordinary_exit != null)
-            ordinary_exit.setOrder(i++);
+            ordinary_exit.setWorklistOrder(i++);
         if (exceptional_exit != null)
-            exceptional_exit.setOrder(i);
-    }
+            exceptional_exit.setWorklistOrder(i);
 
-    /**
-     * Produces a topological sorting of blocks with a depth-first search that ignores cycles.
-     * Algorithm: wikipedia on topological sorting with depth-first (Cormen2001/Tarjan1976).
-     * - slightly modified to produce prettier orders
-     */
-    private static List<BasicBlock> produceDependencyOrder(Collection<BasicBlock> blocks, Set<BasicBlock> ignored, List<BasicBlock> rootOrder) {
-        List<BasicBlock> sorted = newList();
-        Set<BasicBlock> notPermanentlyMarked = newSet(blocks);
-        Set<BasicBlock> temporarilyMarked = newSet();
-
-        // Implementation choice in topological sort: process roots only, and in reverse order
-        List<BasicBlock> reverseRootOrder = newList(rootOrder);
-        Collections.reverse(reverseRootOrder);
-        for (BasicBlock root : reverseRootOrder) {
-            visit(root, temporarilyMarked, notPermanentlyMarked, sorted, ignored);
+        // topological order
+        i = 0;
+        for (BasicBlock block : BlockDependencyOrderer.produceDependencyOrder(topologicalBlocks, nonTopologicalBlocks, rootOrder, false)) {
+            block.setTopologicalOrder(i++);
         }
-        if (!notPermanentlyMarked.isEmpty()) {
-            // sanity check that it is ok to iterate roots instead of "notPermanentlyMarked"
-            throw new AnalysisException("Bad topological sort implementation");
-        }
-        Collections.reverse(sorted); // the list has been built backwards...
-        return sorted;
-    }
-
-    private static void visit(BasicBlock n, Set<BasicBlock> temporarilyMarked, Set<BasicBlock> notPermanentlyMarked, List<BasicBlock> sorted, Set<BasicBlock> ignored) {
-        if (temporarilyMarked.contains(n)) {
-            return;
-        }
-        if (notPermanentlyMarked.contains(n)) {
-            temporarilyMarked.add(n);
-            List<BasicBlock> successors = newList(n.getSuccessors());
-            BasicBlock exceptionHandler = n.getExceptionHandler();
-            if (exceptionHandler != null) {
-                successors.add(exceptionHandler);
-            }
-
-            // Implementation choice in topological sort: process multiple successors in reverse source position order.
-            // A benefit of this is that loop back edges receive lower order than the loop successors.
-            Collections.sort(successors, (o1, o2) -> -o1.getSourceLocation().compareTo(o2.getSourceLocation()));
-
-            successors.removeAll(ignored);
-            for (BasicBlock m : successors) {
-                visit(m, temporarilyMarked, notPermanentlyMarked, sorted, ignored);
-            }
-            notPermanentlyMarked.remove(n);
-            temporarilyMarked.remove(n);
-            sorted.add(n);
-        }
+        if (ordinary_exit != null)
+            ordinary_exit.setTopologicalOrder(i++);
+        if (exceptional_exit != null)
+            exceptional_exit.setTopologicalOrder(i);
     }
 
     /**
@@ -483,20 +431,44 @@ public class Function {
      */
     public void check(Function main, Set<Integer> seen_functions, Set<Integer> seen_blocks, Set<Integer> seen_nodes) {
         if (!seen_functions.add(index))
-            throw new AnalysisException("Duplicate function index: " + index + " for " + toString());
+            throw new AnalysisException("Duplicate function index: " + index + " for " + this);
         if (index == -1)
-            throw new AnalysisException("Function has not been added to flow graph: " + toString());
+            throw new AnalysisException("Function has not been added to flow graph: " + this);
         if ((this == main) != isMain())
-            throw new AnalysisException("Function is confused about main: " + toString());
+            throw new AnalysisException("Function is confused about main: " + this);
         if (ordinary_exit == null)
-            throw new AnalysisException("Function is missing ordinary exit: " + toString());
+            throw new AnalysisException("Function is missing ordinary exit: " + this);
         if (exceptional_exit == null)
-            throw new AnalysisException("Function is missing exceptional exit: " + toString());
+            throw new AnalysisException("Function is missing exceptional exit: " + this);
         for (BasicBlock bb : blocks)
             bb.check(entry, ordinary_exit, exceptional_exit, seen_blocks, seen_nodes);
     }
 
+    /**
+     * Returns the node where this function is declared.
+     */
+    public DeclareFunctionNode getNode() {
+        return node;
+    }
+
+    /**
+     * Sets the node where this function is declared.
+     */
+    public void setNode(DeclareFunctionNode node) {
+        this.node = node;
+    }
+
+    /**
+     * Returns the source code of the function, null if full source code is not available (e.g. eventhandlers in html).
+     */
     public String getSource() {
         return source;
+    }
+
+    /**
+     * Returns true if this function is in strict mode.
+     */
+    public boolean isStrict() {
+        return strict;
     }
 }

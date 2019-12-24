@@ -16,7 +16,6 @@ public class JSArray_slice_test {
 
     @Test
     public void emptyToEmpty() {
-        Misc.init();
         Misc.runSource(//
                 "var sliced = [].slice(0, 0);",
                 "TAJS_assert(sliced.length === 0);",
@@ -25,7 +24,6 @@ public class JSArray_slice_test {
 
     @Test
     public void makeEmpty() {
-        Misc.init();
         Misc.runSource(//
                 "var sliced = ['x'].slice(0, 0);",
                 "TAJS_assert(sliced.length === 0);",
@@ -34,7 +32,6 @@ public class JSArray_slice_test {
 
     @Test
     public void extractOne() {
-        Misc.init();
         Misc.runSource(//
                 "var sliced = ['x'].slice(0, 1);",
                 "TAJS_assert(sliced.length === 1);",
@@ -44,7 +41,6 @@ public class JSArray_slice_test {
 
     @Test
     public void extractOneNotFirst() {
-        Misc.init();
         Misc.runSource(//
                 "var sliced = ['x', 'y'].slice(1, 2);",
                 "TAJS_assert(sliced.length === 1);",
@@ -54,7 +50,6 @@ public class JSArray_slice_test {
 
     @Test
     public void extractTwo() {
-        Misc.init();
         Misc.runSource(//
                 "var sliced = ['x', 'y', 'z'].slice(0, 2);",
                 "TAJS_assert(sliced.length === 2);",
@@ -64,7 +59,6 @@ public class JSArray_slice_test {
 
     @Test
     public void cloneImplicit() {
-        Misc.init();
         Misc.runSource(//
                 "var sliced = ['x', 'y', 'z'].slice();",
                 "TAJS_assert(sliced.length === 3);",
@@ -74,7 +68,6 @@ public class JSArray_slice_test {
 
     @Test
     public void cloneExplicit() {
-        Misc.init();
         Misc.runSource(//
                 "var sliced = ['x', 'y', 'z'].slice(0,3);",
                 "TAJS_assert(sliced.length === 3);",
@@ -84,7 +77,6 @@ public class JSArray_slice_test {
 
     @Test
     public void cloneExplicitTooLong() {
-        Misc.init();
         Misc.runSource(//
                 "var sliced = ['x', 'y', 'z'].slice(0,4);",
                 "TAJS_assert(sliced.length === 3);",
@@ -94,7 +86,6 @@ public class JSArray_slice_test {
 
     @Test
     public void extractArray() {
-        Misc.init();
         Misc.runSource(//
                 "var sliced = [['x0', 'y0'], ['x1', 'y1']].slice(0, 1);",
                 "TAJS_assert(sliced.length === 1);",

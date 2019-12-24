@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,15 +16,19 @@
 
 package dk.brics.tajs.analysis.dom.core;
 
+import dk.brics.tajs.analysis.Exceptions;
 import dk.brics.tajs.analysis.InitialStateBuilder;
 import dk.brics.tajs.analysis.PropVarOperations;
 import dk.brics.tajs.analysis.Solver;
 import dk.brics.tajs.analysis.dom.DOMObjects;
 import dk.brics.tajs.analysis.dom.DOMWindow;
+import dk.brics.tajs.flowgraph.AbstractNode;
 import dk.brics.tajs.lattice.ObjectLabel;
 import dk.brics.tajs.lattice.ObjectLabel.Kind;
+import dk.brics.tajs.lattice.PKey;
 import dk.brics.tajs.lattice.State;
 import dk.brics.tajs.lattice.Value;
+import dk.brics.tajs.options.Options;
 
 import static dk.brics.tajs.analysis.dom.DOMFunctions.createDOMProperty;
 
@@ -39,28 +43,35 @@ import static dk.brics.tajs.analysis.dom.DOMFunctions.createDOMProperty;
  */
 public class DOMException {
 
-    public static final ObjectLabel DOMEXCEPTION = new ObjectLabel(DOMObjects.DOMEXCEPTION, Kind.OBJECT);
+    private static ObjectLabel DOMEXCEPTION;
 
-    public static final ObjectLabel DOMEXCEPTION_PROTOTYPE = new ObjectLabel(DOMObjects.DOMEXCEPTION_PROTOTYPE, Kind.OBJECT);
+    private static ObjectLabel DOMEXCEPTION_PROTOTYPE;
 
     /**
      * Creates a DOMException.
      */
-    public static Value newDOMException(int code, Solver.SolverInterface c) {
+    public static Value newDOMException(Value code, Solver.SolverInterface c) {
         State s = c.getState();
         PropVarOperations pv = c.getAnalysis().getPropVarOperations();
         s.newObject(DOMEXCEPTION);
         s.writeInternalPrototype(DOMEXCEPTION, Value.makeObject(DOMEXCEPTION_PROTOTYPE));
-        pv.writeProperty(DOMEXCEPTION, "code", Value.makeNum(code));
+        pv.writeProperty(DOMEXCEPTION, "code", code);
         return Value.makeObject(DOMEXCEPTION);
     }
 
     public static void build(Solver.SolverInterface c) {
+        DOMEXCEPTION = ObjectLabel.make(DOMObjects.DOMEXCEPTION, Kind.OBJECT);
+        DOMEXCEPTION_PROTOTYPE = ObjectLabel.make(DOMObjects.DOMEXCEPTION_PROTOTYPE, Kind.OBJECT);
+
         State s = c.getState();
         PropVarOperations pv = c.getAnalysis().getPropVarOperations();
         s.newObject(DOMEXCEPTION_PROTOTYPE);
         s.writeInternalPrototype(DOMEXCEPTION_PROTOTYPE, Value.makeObject(InitialStateBuilder.OBJECT_PROTOTYPE));
         pv.writeProperty(DOMWindow.WINDOW, "DOMException", Value.makeObject(DOMEXCEPTION_PROTOTYPE));
+
+        s.newObject(DOMEXCEPTION);
+        s.writeInternalPrototype(DOMEXCEPTION, Value.makeObject(DOMEXCEPTION_PROTOTYPE));
+        pv.writePropertyWithAttributes(DOMEXCEPTION_PROTOTYPE, PKey.SymbolPKey.make(InitialStateBuilder.WELLKNOWN_SYMBOL_TO_STRING_TAG), Value.makeStr("DOMException").setAttributes(true, true, true));
 
         /*
          * Properties.
@@ -83,5 +94,13 @@ public class DOMException {
         createDOMProperty(DOMEXCEPTION_PROTOTYPE, "INVALID_MODIFICATION_ERR", Value.makeNum(13), c);
         createDOMProperty(DOMEXCEPTION_PROTOTYPE, "NAMESPACE_ERR", Value.makeNum(14), c);
         createDOMProperty(DOMEXCEPTION_PROTOTYPE, "INVALID_ACCESS_ERR", Value.makeNum(15), c);
+    }
+
+    public static void throwException(AbstractNode sourceNode, Solver.SolverInterface c, boolean maybe) {
+        if (maybe && Options.get().getUnsoundness().isNoExceptions()) {
+            c.getAnalysis().getUnsoundness().ignoringException(c.getNode(), "DOMException");
+            return;
+        }
+        Exceptions.throwException(c.getState().clone(), newDOMException(Value.makeAnyNumUInt(), c), c, sourceNode);
     }
 }

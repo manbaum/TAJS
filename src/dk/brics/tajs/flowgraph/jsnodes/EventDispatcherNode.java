@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,20 +32,36 @@ public class EventDispatcherNode extends Node {
      * Different kinds of event dispatching.
      */
     public enum Type {
-        /**
-         * Load event.
-         */
-        LOAD,
 
         /**
-         * Unload event.
+         * Content loaded event.
          */
-        UNLOAD,
+        DOM_CONTENT_LOADED,
 
         /**
-         * Other events than load and unload.
+         * Load DOM event.
          */
-        OTHER
+        DOM_LOAD,
+
+        /**
+         * Unload DOM event.
+         */
+        DOM_UNLOAD,
+
+        /**
+         * Other DOM events than load and unload.
+         */
+        DOM_OTHER,
+
+        /**
+         * Events that are scheduled for asynchronous execution.
+         */
+        ASYNC,
+
+        /**
+         * Entry point for type tests.
+         */
+        TYPE_TESTS
     }
 
     private Type type;
@@ -73,7 +89,7 @@ public class EventDispatcherNode extends Node {
 
     @Override
     public String toString() {
-        return "event-dispatcher <" + type + ">";
+        return "event-dispatcher <" + type.name().replace("DOM_", "") + ">";
     }
 
     @Override
@@ -83,10 +99,10 @@ public class EventDispatcherNode extends Node {
 
     @Override
     public void check(BasicBlock b) {
-        if (!Options.get().isDOMEnabled())
-            throw new AnalysisException("EventDispatcherNode found without DOM enabled: " + toString());
+        if (!Options.get().isDOMEnabled() && !Options.get().isAsyncEventsEnabled())
+            throw new AnalysisException("EventDispatcherNode found without DOM or AsyncEvents enabled: " + this);
         if (b.getNodes().size() != 1)
-            throw new AnalysisException("Node should have its own basic block: " + toString());
+            throw new AnalysisException("Node should have its own basic block: " + this);
         if (b.getSuccessors().size() > 1)
             throw new AnalysisException("More than one successor for call node block: " + b);
     }

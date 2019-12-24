@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,15 +38,12 @@ public interface IState
      *
      * @return true if changed
      */
-    boolean propagate(StateType s, boolean funentry);
+    boolean propagate(StateType s, boolean funentry, boolean widen);
 
     /**
-     * Checks whether this abstract state represents the empty set of concrete states.
-     * This is an approximation in the sense that not all possible inconsistencies may be discovered,
-     * i.e. if true is returned then the abstract state definitely represents the empty set of concrete states
-     * but maybe not the other way around.
+     * Checks whether this abstract state is the bottom abstract state.
      */
-    boolean isNone();
+    boolean isBottom();
 
     /**
      * Returns a brief description of the state.
@@ -76,6 +73,12 @@ public interface IState
     void localize(StateType s);
 
     /**
+     * Sets this state to the bottom abstract state.
+     * Used for representing 'no flow'.
+     */
+    void setToBottom();
+
+    /**
      * Transforms this state according to the given edge.
      *
      * @param edge                edge information
@@ -97,4 +100,9 @@ public interface IState
      * Returns the context for this state.
      */
     ContextType getContext();
+
+    /**
+     * Returns the basic block for this state.
+     */
+    BasicBlock getBasicBlock();
 }

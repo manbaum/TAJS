@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,11 +20,10 @@ import dk.brics.tajs.analysis.js.EdgeTransfer;
 import dk.brics.tajs.analysis.js.NodeTransfer;
 import dk.brics.tajs.flowgraph.AbstractNode;
 import dk.brics.tajs.flowgraph.BasicBlock;
-import dk.brics.tajs.flowgraph.jsnodes.CallNode;
-import dk.brics.tajs.flowgraph.jsnodes.IfNode;
 import dk.brics.tajs.flowgraph.jsnodes.Node;
 import dk.brics.tajs.lattice.Context;
 import dk.brics.tajs.lattice.State;
+import dk.brics.tajs.solver.CallKind;
 import dk.brics.tajs.solver.IEdgeTransfer;
 import dk.brics.tajs.solver.INodeTransfer;
 import org.apache.log4j.Logger;
@@ -34,7 +33,7 @@ import org.apache.log4j.Logger;
  */
 public class Transfer implements
         INodeTransfer<State, Context>,
-        IEdgeTransfer<State, Context> {
+        IEdgeTransfer<Context> {
 
     private static Logger log = Logger.getLogger(Transfer.class);
 
@@ -55,6 +54,7 @@ public class Transfer implements
      */
     public void setSolverInterface(Solver.SolverInterface c) {
         js_node_transfer.setSolverInterface(c);
+        js_edge_transfer.setSolverInterface(c);
     }
 
     @Override
@@ -64,20 +64,18 @@ public class Transfer implements
 
     @Override
     public void transferReturn(AbstractNode call_node, BasicBlock callee_entry,
-                               Context caller_context, Context callee_context, Context edge_context, boolean implicit) {
-        js_node_transfer.transferReturn(call_node, callee_entry, caller_context, callee_context, edge_context, implicit);
+                               Context caller_context, Context callee_context, Context edge_context, CallKind callKind) {
+        js_node_transfer.transferReturn(call_node, callee_entry, caller_context, callee_context, edge_context, callKind);
     }
 
     @Override
     public void visit(Node n) {
         n.visitBy(js_node_transfer);
-        if (!(n instanceof CallNode) && !(n instanceof IfNode) && n.isRegistersDone()) // call and if nodes are treated elsewhere
-            js_node_transfer.getSolverInterface().getState().clearOrdinaryRegisters();
     }
 
     @Override
-    public Context transfer(BasicBlock src, BasicBlock dst, State state) {
-        Context res = js_edge_transfer.transfer(src, dst, state);
+    public Context transfer(BasicBlock src, BasicBlock dst) {
+        Context res = js_edge_transfer.transfer(src, dst);
         if (res == null)
             if (log.isDebugEnabled())
                 log.debug("Killing flow to block " + dst.getIndex());

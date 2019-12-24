@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,8 +19,10 @@ package dk.brics.tajs.util;
 import dk.brics.tajs.options.OptionValues;
 import dk.brics.tajs.options.Options;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -29,10 +31,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
 
 /**
  * Miscellaneous collection construction methods.
- * If {@link OptionValues#isTestEnabled()} is enabled, the methods return collections with predictable iteration order.
+ * If {@link OptionValues#isDeterministicCollectionsEnabled()} is enabled, the methods return collections with predictable iteration order.
  */
 public class Collections {
 
@@ -43,7 +46,7 @@ public class Collections {
      * Constructs a new empty map.
      */
     public static <T1, T2> Map<T1, T2> newMap() {
-        if (Options.get().isTestEnabled())
+        if (Options.get().isDeterministicCollectionsEnabled())
             return new LinkedHashMap<>();
         else if (!Options.get().isHybridCollectionsDisabled())
             return new HybridArrayHashMap<>();
@@ -55,7 +58,7 @@ public class Collections {
      * Constructs a new map as a copy of the given map.
      */
     public static <T1, T2> Map<T1, T2> newMap(Map<T1, T2> m) {
-        if (Options.get().isTestEnabled())
+        if (Options.get().isDeterministicCollectionsEnabled())
             return new LinkedHashMap<>(m);
         else if (!Options.get().isHybridCollectionsDisabled())
             return new HybridArrayHashMap<>(m);
@@ -64,39 +67,47 @@ public class Collections {
     }
 
     /**
-     * Adds an element to a map of lists. Creates a new list for the key if it does not already exist in the map.
+     * Constructs a new map with the element key -> value.
+     */
+    public static <T1, T2> Map<T1, T2> mapOf(T1 key, T2 value) {
+        Map<T1, T2> map = newMap();
+        map.put(key, value);
+        return map;
+    }
+
+    /**
+     * Adds an element to a map of maps. Creates a new map for the key if it does not already exist.
+     */
+    public static <T1, T2, T3> void addToMapMap(Map<T1, Map<T2, T3>> map, T1 key1, T2 key2, T3 value) {
+        map.computeIfAbsent(key1, k -> newMap()).put(key2, value);
+    }
+
+    /**
+     * Adds an element to a map of lists. Creates a new list for the key if it does not already exist.
      */
     public static <T1, T2> void addToMapList(Map<T1, List<T2>> map, T1 key, T2 value) {
-        List<T2> list = map.get(key);
-        if (list == null) {
-            list = newList();
-            map.put(key, list);
-        }
-        list.add(value);
+        map.computeIfAbsent(key, k -> newList()).add(value);
     }
 
     /**
-     * Adds an element to a map of sets. Creates a new set for the key if it does not already exist in the map.
+     * Adds an element to a map of sets. Creates a new set for the key if it does not already exist.
      */
     public static <T1, T2> void addToMapSet(Map<T1, Set<T2>> map, T1 key, T2 value) {
-        Set<T2> set = map.get(key);
-        if (set == null) {
-            set = newSet();
-            map.put(key, set);
-        }
-        set.add(value);
+        map.computeIfAbsent(key, k -> newSet()).add(value);
     }
 
     /**
-     * Adds elements to a map of sets. Creates a new set for the key if it does not already exist in the map.
+     * Adds elements to a map of sets. Creates a new set for the key if it does not already exist.
      */
     public static <T1, T2> void addAllToMapSet(Map<T1, Set<T2>> map, T1 key, Collection<T2> values) {
-        Set<T2> set = map.get(key);
-        if (set == null) {
-            set = newSet();
-            map.put(key, set);
-        }
-        set.addAll(values);
+        map.computeIfAbsent(key, k -> newSet()).addAll(values);
+    }
+
+    /**
+     * Adds an element to a map of maps of sets. Creates a new set and new map if they do not already exist in the map.
+     */
+    public static <T1, T2, T3> void addAllToMapMapSet(Map<T1, Map<T2, Set<T3>>> map, T1 key1, T2 key2, Collection<T3> value) {
+        map.computeIfAbsent(key1, k -> newMap()).computeIfAbsent(key2, k -> newSet()).addAll(value);
     }
 
     /**
@@ -104,7 +115,7 @@ public class Collections {
      */
     public static <T1, T2> Map<T1, Set<T2>> newMapSet(Map<T1, Set<T2>> m) {
         Map<T1, Set<T2>> result;
-        if (Options.get().isTestEnabled()) {
+        if (Options.get().isDeterministicCollectionsEnabled()) {
             result = new LinkedHashMap<>();
         } else if (!Options.get().isHybridCollectionsDisabled()) {
             result = new HybridArrayHashMap<>();
@@ -122,7 +133,7 @@ public class Collections {
      */
     public static <T1, T2, T3> Map<T1, Map<T2, Set<T3>>> newMapMapSet(Map<T1, Map<T2, Set<T3>>> m) {
         Map<T1, Map<T2, Set<T3>>> result;
-        if (Options.get().isTestEnabled()) {
+        if (Options.get().isDeterministicCollectionsEnabled()) {
             result = new LinkedHashMap<>();
         } else if (!Options.get().isHybridCollectionsDisabled()) {
             result = new HybridArrayHashMap<>();
@@ -136,6 +147,13 @@ public class Collections {
     }
 
     /**
+     * Adds an element to a map of maps of sets. Creates a new set for the key if it does not already exist in the map.
+     */
+    public static <T1, T2, T3> void addToMapMapSet(Map<T1, Map<T2, Set<T3>>> map, T1 key1, T2 key2, T3 value) {
+        map.computeIfAbsent(key1, k -> newMap()).computeIfAbsent(key2, k -> newSet()).add(value);
+    }
+
+    /**
      * Constructs a new mutable singleton set containing the given element.
      * Note that the set is mutable (created by {@link #newSet()}), unlike java.util.Collections.singleton.
      */
@@ -146,10 +164,20 @@ public class Collections {
     }
 
     /**
+     * Constructs a new mutable singleton list containing the given element.
+     * Note that the set is mutable (created by {@link #newList()}), unlike java.util.Collections.singletonList.
+     */
+    public static <T> List<T> singletonList(T t) {
+        List<T> set = newList();
+        set.add(t);
+        return set;
+    }
+
+    /**
      * Constructs a new empty set.
      */
     public static <T> Set<T> newSet() {
-        if (Options.get().isTestEnabled())
+        if (Options.get().isDeterministicCollectionsEnabled())
             return new LinkedHashSetWithSortedToString<>();
         else if (!Options.get().isHybridCollectionsDisabled())
             return new HybridArrayHashSet<>();
@@ -161,7 +189,7 @@ public class Collections {
      * Constructs a new set from the given collection.
      */
     public static <T> Set<T> newSet(Collection<T> s) {
-        if (Options.get().isTestEnabled())
+        if (Options.get().isDeterministicCollectionsEnabled())
             return new LinkedHashSetWithSortedToString<>(s);
         else if (!Options.get().isHybridCollectionsDisabled())
             return new HybridArrayHashSet<>(s);
@@ -219,7 +247,17 @@ public class Collections {
      * Returns an ordered set of map entries, sorted by the natural order of the entry keys.
      */
     public static <K extends Comparable<K>, V> TreeSet<Map.Entry<K, V>> sortedEntries(Map<K, V> m) {
-        TreeSet<Map.Entry<K, V>> s = new TreeSet<>(new MapEntryComparator<>());
+        TreeSet<Map.Entry<K, V>> s = new TreeSet<>(new MapEntryComparatorNatural<>());
+        for (Map.Entry<K, V> me : m.entrySet())
+            s.add(new MapEntry<>(me.getKey(), me.getValue()));
+        return s;
+    }
+
+    /**
+     * Returns an ordered set of map entries, sorted using the given comparator.
+     */
+    public static <K, V> TreeSet<Map.Entry<K, V>> sortedEntries(Map<K, V> m, Comparator<K> c) {
+        TreeSet<Map.Entry<K, V>> s = new TreeSet<>(new MapEntryComparatorSpecial<>(c));
         for (Map.Entry<K, V> me : m.entrySet())
             s.add(new MapEntry<>(me.getKey(), me.getValue()));
         return s;
@@ -229,10 +267,10 @@ public class Collections {
 
         private static final long serialVersionUID = 1L;
 
-        public LinkedHashSetWithSortedToString() {
+        LinkedHashSetWithSortedToString() {
         }
 
-        public LinkedHashSetWithSortedToString(Collection<T> c) {
+        LinkedHashSetWithSortedToString(Collection<T> c) {
             super(c);
         }
 
@@ -242,6 +280,45 @@ public class Collections {
             List<T> sorted = newList(this);
             sorted.sort((o1, o2) -> o2.toString().compareTo(o1.toString()));
             return sorted.toString();
+        }
+    }
+
+    /**
+     * Applies f to each element in the collection, producing a new collection.
+     */
+    public static <C,T> Collection<T> map(Collection<C> ts, Function<C,T> f) {
+        return ts.stream().map(f).collect(Collectors.toList());
+    }
+
+    /**
+     * Comparator for map entries using the given entry key comparator.
+     */
+    static class MapEntryComparatorSpecial<K, V> implements Comparator<Map.Entry<K, V>>, Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        private Comparator<K> c;
+
+        public MapEntryComparatorSpecial(Comparator<K> c) {
+            this.c = c;
+        }
+
+        @Override
+        public int compare(Map.Entry<K, V> e1, Map.Entry<K, V> e2) {
+            return c.compare(e1.getKey(), e2.getKey());
+        }
+    }
+
+    /**
+     * Comparator for map entries using the natural order of the entry keys.
+     */
+    static class MapEntryComparatorNatural<K extends Comparable<K>, V> implements Comparator<Map.Entry<K, V>>, Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        @Override
+        public int compare(Map.Entry<K, V> e1, Map.Entry<K, V> e2) {
+            return e1.getKey().compareTo(e2.getKey());
         }
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -62,6 +62,21 @@ public interface Num {
     boolean isInf();
 
     /**
+     * Returns true is this value may be any positive UInt32.
+     */
+    boolean isMaybeNumUIntPos();
+
+    /**
+     * Returns true is this value may be the number 0.
+     */
+    boolean isMaybeZero();
+
+    /**
+     * Returns true if the given number is matched by this value.
+     */
+    boolean isMaybeNum(double num);
+
+    /**
      * Returns true if this value is maybe any UInt number.
      */
     boolean isMaybeNumUInt();
@@ -90,6 +105,21 @@ public interface Num {
      * Returns true if this value is maybe a non-UInt-number.
      */
     boolean isMaybeOtherThanNumUInt();
+
+    /**
+     * Returns true if this value is maybe any number but not NaN or infinite.
+     */
+    boolean isMaybeAnyNumNotNaNInf();
+
+    /**
+     * Returns true if this number value is maybe the same as the given one.
+     */
+    boolean isMaybeSameNumber(Value v);
+
+    /**
+     * Returns true if this number value is maybe the same as the given one when negated.
+     */
+    boolean isMaybeSameNumberWhenNegated(Value v);
 
     /**
      * Constructs a value as the join of this value and any number.
@@ -127,6 +157,11 @@ public interface Num {
     Value restrictToNotNaN();
 
     /**
+     * Constructs a value as a copy of this value but definitely not +/- Infinity.
+     */
+    Value restrictToNotInf();
+
+    /**
      * Constructs a value from this value where only the number facet is considered.
      */
     Value restrictToNum();
@@ -135,4 +170,24 @@ public interface Num {
      * Constructs a value from this value but definitely not a number.
      */
     Value restrictToNotNum();
+
+    /**
+     * Constructs a value from this value but definitely not a UInt number.
+     */
+    Value restrictToNotNumUInt();
+
+    /**
+     * Constructs a value from this value but definitely not an "other" number.
+     */
+    Value restrictToNotNumOther();
+
+    /**
+     * Constructs a value from this value but definitely not zero.
+     */
+    Value restrictToNotNumZero();
+
+    /**
+     * Constructs a value from this value but definitely not +/- infinity.
+     */
+    Value restrictToNotNumInf();
 }

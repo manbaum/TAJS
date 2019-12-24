@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,21 +16,13 @@
 
 package dk.brics.tajs.analysis.nativeobjects;
 
-import dk.brics.tajs.analysis.Analysis;
-import dk.brics.tajs.analysis.Conversion;
 import dk.brics.tajs.analysis.Exceptions;
 import dk.brics.tajs.analysis.FunctionCalls.CallInfo;
 import dk.brics.tajs.analysis.Solver;
-import dk.brics.tajs.lattice.CallEdge;
-import dk.brics.tajs.lattice.Context;
 import dk.brics.tajs.lattice.ObjectLabel;
 import dk.brics.tajs.lattice.ObjectLabel.Kind;
-import dk.brics.tajs.lattice.State;
 import dk.brics.tajs.lattice.UnknownValueResolver;
 import dk.brics.tajs.lattice.Value;
-import dk.brics.tajs.monitoring.IAnalysisMonitoring;
-import dk.brics.tajs.options.Options;
-import dk.brics.tajs.solver.GenericSolver;
 import dk.brics.tajs.solver.Message.Severity;
 import dk.brics.tajs.util.AnalysisException;
 import dk.brics.tajs.util.AnalysisLimitationException;
@@ -62,9 +54,23 @@ public class ECMAScriptFunctions {
             case OBJECT_ISPROTOTYPEOF:
             case OBJECT_PROPERTYISENUMERABLE:
             case OBJECT_DEFINE_PROPERTY:
+            case OBJECT_DEFINE_PROPERTIES:
             case OBJECT_CREATE:
             case OBJECT_FREEZE:
             case OBJECT_KEYS:
+            case OBJECT_GETOWNPROPERTYNAMES:
+            case OBJECT_GETOWNPROPERTYSYMBOLS:
+            case OBJECT_DEFINEGETTER:
+            case OBJECT_DEFINESETTER:
+            case OBJECT_GETOWNPROPERTYDESCRIPTOR:
+            case OBJECT_GETPROTOTYPEOF:
+            case OBJECT_SETPROTOTYPEOF:
+            case OBJECT_IS:
+            case OBJECT_ASSIGN:
+            case OBJECT_ISFROZEN:
+            case OBJECT_PREVENTEXTENSIONS:
+            case OBJECT_SEAL:
+            case OBJECT_VALUES:
                 res = JSObject.evaluate(nativeobject, call, c);
                 break;
 
@@ -74,6 +80,11 @@ public class ECMAScriptFunctions {
             case FUNCTION_CALL:
             case FUNCTION_PROTOTYPE:
                 res = JSFunction.evaluate(nativeobject, call, c);
+                break;
+
+            case JSON_PARSE:
+            case JSON_STRINGIFY:
+                res = JSJson.evaluate(nativeobject, call, c);
                 break;
 
             case ARRAY:
@@ -86,7 +97,6 @@ public class ECMAScriptFunctions {
             case ARRAY_REVERSE:
             case ARRAY_SHIFT:
             case ARRAY_SLICE:
-            case ARRAY_SOME:
             case ARRAY_SORT:
             case ARRAY_SPLICE:
             case ARRAY_UNSHIFT:
@@ -102,6 +112,10 @@ public class ECMAScriptFunctions {
             case NUMBER_TOLOCALESTRING:
             case NUMBER_TOSTRING:
             case NUMBER_VALUEOF:
+            case NUMBER_ISFINITE:
+            case NUMBER_ISSAFEINTEGER:
+            case NUMBER_ISINTEGER:
+            case NUMBER_ISNAN:
                 res = JSNumber.evaluate(nativeobject, call, c);
                 break;
 
@@ -122,6 +136,15 @@ public class ECMAScriptFunctions {
             case REGEXP_TEST:
             case REGEXP_TOSTRING:
                 res = JSRegExp.evaluate(nativeobject, call, c);
+                break;
+
+            case SYMBOL:
+            case SYMBOL_TOSTRING:
+            case SYMBOL_FOR:
+            case SYMBOL_KEYFOR:
+            case SYMBOL_TOSOURCE:
+            case SYMBOL_VALUEOF:
+                res = JSSymbol.evaluate(nativeobject, call, c);
                 break;
 
             case DATE:
@@ -178,7 +201,6 @@ public class ECMAScriptFunctions {
             case STRING:
             case STRING_VALUEOF:
             case STRING_TOSTRING:
-            case STRING_REPLACE:
             case STRING_TOUPPERCASE:
             case STRING_TOLOCALEUPPERCASE:
             case STRING_TOLOWERCASE:
@@ -194,9 +216,16 @@ public class ECMAScriptFunctions {
             case STRING_INDEXOF:
             case STRING_CONCAT:
             case STRING_FROMCHARCODE:
+            case STRING_FROMCODEPOINT:
             case STRING_CHARCODEAT:
             case STRING_CHARAT:
             case STRING_TRIM:
+            case STRING_TRIMSTART:
+            case STRING_TRIMEND:
+            case STRING_ENDSWITH:
+            case STRING_STARTSWITH:
+            case STRING_INCLUDES:
+            case STRING_CODEPOINTAT:
                 res = JSString.evaluate(nativeobject, call, c);
                 break;
 
@@ -224,6 +253,23 @@ public class ECMAScriptFunctions {
             case MATH_MAX:
             case MATH_MIN:
             case MATH_RANDOM:
+            case MATH_IMUL:
+            case MATH_SIGN:
+            case MATH_TRUNC:
+            case MATH_TANH:
+            case MATH_ASINH:
+            case MATH_ACOSH:
+            case MATH_ATANH:
+            case MATH_HYPOT:
+            case MATH_FROUND:
+            case MATH_CLZ32:
+            case MATH_CBRT:
+            case MATH_SINH:
+            case MATH_COSH:
+            case MATH_LOG10:
+            case MATH_LOG2:
+            case MATH_LOG1P:
+            case MATH_EXPM1:
                 res = JSMath.evaluate(nativeobject, call, c);
                 break;
 
@@ -240,24 +286,12 @@ public class ECMAScriptFunctions {
             case ALERT:
             case ESCAPE:
             case UNESCAPE:
-            case TAJS_DUMPVALUE:
-            case TAJS_DUMPPROTOTYPE:
-            case TAJS_DUMPOBJECT:
-            case TAJS_DUMPSTATE:
-            case TAJS_DUMPMODIFIEDSTATE:
-            case TAJS_DUMPATTRIBUTES:
-            case TAJS_DUMPEXPRESSION:
-            case TAJS_DUMPNF:
-            case TAJS_CONVERSION_TO_PRIMITIVE:
-            case TAJS_ADD_CONTEXT_SENSITIVITY:
-            case TAJS_NEW_OBJECT:
-            case TAJS_ASSERT:
-            case TAJS_GET_KEYBOARD_EVENT:
-            case TAJS_GET_MOUSE_EVENT:
-            case TAJS_GET_UI_EVENT:
-            case TAJS_GET_EVENT_LISTENER:
-            case TAJS_GET_WHEEL_EVENT:
                 res = JSGlobal.evaluate(nativeobject, call, c);
+                break;
+
+            case PROXY:
+            case PROXY_TOSTRING:
+                res = JSProxy.evaluate(nativeobject, call, c);
                 break;
 
             case ARRAY_PROTOTYPE:
@@ -280,11 +314,10 @@ public class ECMAScriptFunctions {
 
             default:
                 String msg = call.getSourceNode().getSourceLocation() + ": No transfer function for native function " + nativeobject;
-                if (Options.get().isUnsoundEnabled()) {
-                    log.error(msg);
+                if (c.getAnalysis().getUnsoundness().maySkipMissingModelOfNativeFunction(c.getNode(), nativeobject)) {
                     return Value.makeUndef();
                 }
-                throw new AnalysisLimitationException(call.getSourceNode(), msg);
+                throw new AnalysisLimitationException.AnalysisModelLimitationException(msg);
         }
         return res;
     }
@@ -292,93 +325,28 @@ public class ECMAScriptFunctions {
     /**
      * toString conversion for ECMAScript built-in objects.
      */
-    public static Value internalToString(ObjectLabel thiss, ECMAScriptObjects obj, GenericSolver<State, Context, CallEdge, IAnalysisMonitoring, Analysis>.SolverInterface c) {
-        Value result = null;
+    public static Value internalToString(ObjectLabel thisobj, ECMAScriptObjects obj, Solver.SolverInterface c) {
+        Value thisval = Value.makeObject(thisobj);
+        Value result;
         switch (obj) {
             case OBJECT_TOSTRING:
-                // 15.2.4.2 Object.prototype.toString ( )
-                // When the toString method is called, the following steps are taken:
-                // 1. Get the [[Class]] property of this object.
-                // 2. Compute a string value by concatenating the three strings "[object ", Result(1), and "]".
-                // 3. Return Result(2).
-                result = Value.makeStr("[object " + thiss.getKind() + "]"); // TODO: warn when this occurs?
-                break;
+                return JSObject.evaluateToString(thisval, c);
             case FUNCTION_TOSTRING:
-                // 15.3.4.2 Function.prototype.toString ( )
-                // An implementation-dependent representation of the function is returned.
-                if (thiss.getKind() == Kind.FUNCTION)
-                    result = Value.makeAnyStr();
-                else
-                    Exceptions.throwTypeError(c);
-                break;
+                return JSFunction.evaluateToString(thisval, c);
             case ARRAY_TOSTRING:
-                // 15.4.4.2 Array.prototype.toString ( )
-                // The result of calling this function is the same as if the built-in join method were invoked for this object with no
-                // argument.
-                if (thiss.getKind() == Kind.ARRAY)
-                    result = Value.makeAnyStr();
-                else
-                    Exceptions.throwTypeError(c);
-                break;
+                return JSArray.evaluateToString(thisval, c);
             case STRING_TOSTRING:
-                // 15.5.4.2 String.prototype.toString ( )
-                // Returns this string value. (Note that, for a String object, the toString method happens to return the same thing as
-                // the valueOf method.)
-                if (thiss.getKind() == Kind.STRING) {
-                    Value v = c.getState().readInternalValue(singleton(thiss));
-                    v = UnknownValueResolver.getRealValue(v, c.getState());
-                    result = v;
-                } else
-                    Exceptions.throwTypeError(c);
-                break;
+                return JSString.evaluateToString(thisval, c);
             case BOOLEAN_TOSTRING:
-                // 15.6.4.2 Boolean.prototype.toString ( )
-                // If this boolean value is true, then the string "true" is returned. Otherwise, this boolean value must be false, and
-                // the string "false" is returned.
-                if (thiss.getKind() == Kind.BOOLEAN) {
-                    Value v = c.getState().readInternalValue(singleton(thiss));
-                    v = UnknownValueResolver.getRealValue(v, c.getState());
-                    if (v.isMaybeTrueButNotFalse())
-                        result = Value.makeStr("true");
-                    else if (v.isMaybeFalseButNotTrue())
-                        result = Value.makeStr("false");
-                    else
-                        result = Value.makeAnyStr();
-                } else
-                    Exceptions.throwTypeError(c);
-                break;
+                return JSBoolean.evaluateToString(thisval, c);
             case NUMBER_TOSTRING:
-                // 15.7.4.2 Number.prototype.toString (radix)
-                // If radix is the number 10 or undefined, then this number value is given as an argument to the ToString operator;
-                // the resulting string value is returned.
-                // If radix is an integer from 2 to 36, but not 10, the result is a string, the choice of which is implementation-dependent.
-                if (thiss.getKind() == Kind.NUMBER) {
-                    Value v = c.getState().readInternalValue(singleton(thiss));
-                    v = UnknownValueResolver.getRealValue(v, c.getState());
-                    result = Conversion.toString(v, c);
-                } else
-                    Exceptions.throwTypeError(c);
-                break;
+                return JSNumber.evaluateToString(thisval, Value.makeUndef(), c);
             case REGEXP_TOSTRING:
-                // 15.10.6.4 RegExp.prototype.toString()
-                if (thiss.getKind() == Kind.REGEXP)
-                    result = Value.makeAnyStr(); // TODO: correct to throw TypeError if thiss is not a REGEXP? (not mentioned in 15.10.6.4)
-                else
-                    Exceptions.throwTypeError(c);
-                break;
+                return JSRegExp.evaluateToString(thisval, c);
             case DATE_TOSTRING:
-                // 15.9.5.2 Date.prototype.toString ( )
-                // This function returns a string value.
-                if (thiss.getKind() == Kind.DATE)
-                    result = Value.makeAnyStr();
-                else
-                    Exceptions.throwTypeError(c); // not generic according to 15.9.5
-                break;
+                return JSDate.evaluateToString(thisval, c);
             case ERROR_TOSTRING:
-                // 15.11.4.4 Error.prototype.toString ( )
-                // Returns an implementation defined string.
-                result = Value.makeAnyStr();
-                break;
+                return JSError.evaluateToString();
             default:
                 c.getMonitoring().addMessage(c.getNode(), Severity.HIGH, "Implicit call to native non-toString method");
                 result = Value.makeAnyStr(); // FIXME: implicit call to native non-toString method - github #254
@@ -390,7 +358,7 @@ public class ECMAScriptFunctions {
     /**
      * valueOf conversion for ECMAScript built-in objects.
      */
-    public static Value internalValueOf(ObjectLabel thiss, ECMAScriptObjects obj, GenericSolver<State, Context, CallEdge, IAnalysisMonitoring, Analysis>.SolverInterface c) {
+    public static Value internalValueOf(ObjectLabel thiss, ECMAScriptObjects obj, Solver.SolverInterface c) {
         Value result = null;
         switch (obj) {
             case OBJECT_VALUEOF:
@@ -432,7 +400,7 @@ public class ECMAScriptFunctions {
                 // 15.9.5.8 Date.prototype.valueOf ( )
                 // The valueOf function returns a number, which is this time value.
                 if (thiss.getKind() == Kind.DATE)
-                    result = Value.makeAnyNumUInt();
+                    return UnknownValueResolver.getInternalValue(thiss, c.getState(), false);
                 else
                     Exceptions.throwTypeError(c); // not generic according to 15.9.5
                 break;

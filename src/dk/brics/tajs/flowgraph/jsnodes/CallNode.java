@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,10 @@
 
 package dk.brics.tajs.flowgraph.jsnodes;
 
+import dk.brics.tajs.flowgraph.AbstractNode;
 import dk.brics.tajs.flowgraph.BasicBlock;
 import dk.brics.tajs.flowgraph.SourceLocation;
+import dk.brics.tajs.flowgraph.TAJSFunctionName;
 import dk.brics.tajs.util.AnalysisException;
 
 import java.util.List;
@@ -61,6 +63,8 @@ public class CallNode extends LoadNode {
 
     private int[] arg_regs;
 
+    private final TAJSFunctionName tajsFunctionName; // null if not used
+
     /**
      * Constructs a new call/construct node.
      *
@@ -79,6 +83,7 @@ public class CallNode extends LoadNode {
         this.arg_regs = new int[arg_regs.size()];
         for (int i = 0; i < this.arg_regs.length; i++)
             this.arg_regs[i] = arg_regs.get(i);
+        this.tajsFunctionName = null;
     }
 
     /**
@@ -100,6 +105,7 @@ public class CallNode extends LoadNode {
         this.arg_regs = new int[arg_regs.size()];
         for (int i = 0; i < this.arg_regs.length; i++)
             this.arg_regs[i] = arg_regs.get(i);
+        this.tajsFunctionName = null;
     }
 
     /**
@@ -122,6 +128,27 @@ public class CallNode extends LoadNode {
         this.arg_regs = new int[arg_regs.size()];
         for (int i = 0; i < this.arg_regs.length; i++)
             this.arg_regs[i] = arg_regs.get(i);
+        this.tajsFunctionName = null;
+    }
+
+    /**
+     * Constructs a new call/construct node for a TAJS_* function.
+     *
+     * @param result_reg The register for the result.
+     * @param tajsFunctionName   The TAJS_* function.
+     * @param arg_regs   The argument registers as a list.
+     * @param location   The source location.
+     */
+    public CallNode(int result_reg, TAJSFunctionName tajsFunctionName, List<Integer> arg_regs, SourceLocation location) {
+        super(result_reg, location);
+        this.constructor = false;
+        this.base_reg = AbstractNode.NO_VALUE;
+        this.property_reg = AbstractNode.NO_VALUE;
+        this.property_str = null;
+        this.arg_regs = new int[arg_regs.size()];
+        for (int i = 0; i < this.arg_regs.length; i++)
+            this.arg_regs[i] = arg_regs.get(i);
+        this.tajsFunctionName = tajsFunctionName;
     }
 
     /**
@@ -182,6 +209,13 @@ public class CallNode extends LoadNode {
         return arg_regs.length;
     }
 
+    /**
+     * Returns the name of the TAJS_* function to call, or null.
+     */
+    public TAJSFunctionName getTajsFunctionName() {
+        return tajsFunctionName;
+    }
+
     @Override
     public String toString() {
         StringBuilder b = new StringBuilder();
@@ -190,16 +224,20 @@ public class CallNode extends LoadNode {
         else
             b.append("call");
         b.append('[');
-        if (base_reg == NO_VALUE)
-            b.append('-');
-        else
-            b.append('v').append(base_reg);
-        if (property_str != null)
-            b.append(",'").append(property_str).append("'");
-        else if (property_reg != NO_VALUE)
-            b.append(",[v").append(property_reg).append("]");
-        else
-            b.append(",v").append(function_reg);
+        if (tajsFunctionName != null)
+            b.append(tajsFunctionName);
+        else {
+            if (base_reg == NO_VALUE)
+                b.append('-');
+            else
+                b.append('v').append(base_reg);
+            if (property_str != null)
+                b.append(",'").append(property_str).append("'");
+            else if (property_reg != NO_VALUE)
+                b.append(",[v").append(property_reg).append("]");
+            else
+                b.append(",v").append(function_reg);
+        }
         for (int v : arg_regs)
             b.append(",v").append(v);
         b.append(",");
@@ -225,7 +263,7 @@ public class CallNode extends LoadNode {
     @Override
     public void check(BasicBlock b) {
         if (b.getNodes().size() != 1)
-            throw new AnalysisException("Node should have its own basic block: " + toString());
+            throw new AnalysisException("Node should have its own basic block: " + this);
         if (b.getSuccessors().size() > 1)
             throw new AnalysisException("More than one successor for call node block: " + b);
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,27 +16,25 @@
 
 package dk.brics.tajs.monitoring;
 
+import dk.brics.tajs.analysis.Solver;
 import dk.brics.tajs.flowgraph.AbstractNode;
 import dk.brics.tajs.flowgraph.BasicBlock;
-import dk.brics.tajs.flowgraph.FlowGraph;
 import dk.brics.tajs.flowgraph.Function;
 import dk.brics.tajs.flowgraph.SourceLocation;
 import dk.brics.tajs.flowgraph.jsnodes.IfNode;
 import dk.brics.tajs.flowgraph.jsnodes.Node;
 import dk.brics.tajs.flowgraph.jsnodes.ReadPropertyNode;
 import dk.brics.tajs.flowgraph.jsnodes.ReadVariableNode;
-import dk.brics.tajs.lattice.CallEdge;
 import dk.brics.tajs.lattice.Context;
 import dk.brics.tajs.lattice.HostObject;
 import dk.brics.tajs.lattice.ObjectLabel;
+import dk.brics.tajs.lattice.PKeys;
 import dk.brics.tajs.lattice.State;
-import dk.brics.tajs.lattice.Str;
 import dk.brics.tajs.lattice.Value;
-import dk.brics.tajs.solver.CallGraph;
+import dk.brics.tajs.solver.BlockAndContext;
 import dk.brics.tajs.solver.Message;
 
 import java.util.Collection;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -63,40 +61,23 @@ public class DefaultAnalysisMonitoring implements IAnalysisMonitoring {
     }
 
     @Override
-    public void beginPhase(AnalysisPhase phase) {
-
+    public void visitPhasePre(AnalysisPhase phase) {
     }
 
     @Override
-    public void endPhase(AnalysisPhase phase) {
-
+    public void visitPhasePost(AnalysisPhase phase) {
     }
 
     @Override
-    public Set<Message> getMessages() {
-        return null;
+    public void setSolverInterface(Solver.SolverInterface c) {
     }
 
     @Override
-    public Map<TypeCollector.VariableSummary, Value> getTypeInformation() {
-        return null;
+    public void visitBlockTransferPre(BasicBlock b, State s) {
     }
 
     @Override
-    public void setCallGraph(CallGraph<State, Context, CallEdge> callGraph) {
-
-    }
-
-    @Override
-    public void setFlowgraph(FlowGraph fg) {
-    }
-
-    @Override
-    public void visitBlockTransfer(BasicBlock b, State s) {
-    }
-
-    @Override
-    public void visitCall(AbstractNode n, boolean maybe_non_function, boolean maybe_function) {
+    public void visitCall(AbstractNode n, Value funval) {
     }
 
     @Override
@@ -124,11 +105,11 @@ public class DefaultAnalysisMonitoring implements IAnalysisMonitoring {
     }
 
     @Override
-    public void visitJoin() {
+    public void visitJoin(long ms) {
     }
 
     @Override
-    public void visitPostBlockTransfer(BasicBlock b, State state) {
+    public void visitBlockTransferPost(BasicBlock b, State state) {
     }
 
     @Override
@@ -140,7 +121,11 @@ public class DefaultAnalysisMonitoring implements IAnalysisMonitoring {
     }
 
     @Override
-    public void visitNodeTransfer(AbstractNode n) {
+    public void visitNodeTransferPre(AbstractNode n, State s) {
+    }
+
+    @Override
+    public void visitNodeTransferPost(AbstractNode n, State s) {
     }
 
     @Override
@@ -148,15 +133,11 @@ public class DefaultAnalysisMonitoring implements IAnalysisMonitoring {
     }
 
     @Override
-    public void visitPropertyRead(AbstractNode n, Set<ObjectLabel> objs, Str propertystr, State state, boolean check_unknown) {
+    public void visitPropertyRead(AbstractNode n, Set<ObjectLabel> objs, PKeys propertyname, State state, boolean check_unknown) {
     }
 
     @Override
-    public void visitPropertyWrite(Node n, Set<ObjectLabel> objs, Str propertystr) {
-    }
-
-    @Override
-    public void visitReachableNode(AbstractNode n) {
+    public void visitPropertyWrite(Node n, Set<ObjectLabel> objs, PKeys propertyname) {
     }
 
     @Override
@@ -168,7 +149,7 @@ public class DefaultAnalysisMonitoring implements IAnalysisMonitoring {
     }
 
     @Override
-    public void visitReadProperty(ReadPropertyNode n, Set<ObjectLabel> objlabels, Str propertystr, boolean maybe, State state, Value v) {
+    public void visitReadProperty(ReadPropertyNode n, Set<ObjectLabel> objlabels, PKeys propertyname, boolean maybe, State state, Value v, ObjectLabel global_obj) {
     }
 
     @Override
@@ -180,11 +161,11 @@ public class DefaultAnalysisMonitoring implements IAnalysisMonitoring {
     }
 
     @Override
-    public void visitRecoveryGraph(int size) {
+    public void visitRecoveryGraph(AbstractNode node, int size) {
     }
 
     @Override
-    public void visitUnknownValueResolve(boolean partial, boolean scanning) {
+    public void visitUnknownValueResolve(AbstractNode node, boolean partial, boolean scanning) {
     }
 
     @Override
@@ -192,11 +173,42 @@ public class DefaultAnalysisMonitoring implements IAnalysisMonitoring {
     }
 
     @Override
-    public void visitVariableAsRead(ReadVariableNode n, Value v, State state) {
+    public void visitVariableAsRead(AbstractNode n, String varname, Value v, State state) {
     }
 
     @Override
-    public void visitVariableOrProperty(String var, SourceLocation loc, Value value, Context context, State state) {
+    public void visitVariableOrProperty(AbstractNode node, String var, SourceLocation loc, Value value, Context context, State state) {
     }
 
+    @Override
+    public void visitNativeFunctionReturn(AbstractNode node, HostObject hostObject, Value result) {
+    }
+
+    @Override
+    public void visitEventHandlerRegistration(AbstractNode node, Context context, Value handler) {
+    }
+
+    @Override
+    public void visitPropagationPre(BlockAndContext<Context> from, BlockAndContext<Context> to) {
+    }
+
+    @Override
+    public void visitPropagationPost(BlockAndContext<Context> from, BlockAndContext<Context> to, boolean changed) {
+    }
+
+    @Override
+    public void visitNewObject(AbstractNode node, ObjectLabel label, State s) {
+    }
+
+    @Override
+    public void visitRenameObject(AbstractNode node, ObjectLabel from, ObjectLabel to, State s) {
+    }
+
+    @Override
+    public void visitIterationDone(String terminatedEarlyMsg) {
+    }
+
+    @Override
+    public void visitSoundnessTestingDone(int numSoundnessChecks) {
+    }
 }

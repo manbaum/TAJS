@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,13 +17,15 @@
 package dk.brics.tajs.flowgraph;
 
 import dk.brics.tajs.flowgraph.jsnodes.ReturnNode;
+import dk.brics.tajs.flowgraph.jsnodes.ThrowNode;
 import dk.brics.tajs.options.Options;
 import dk.brics.tajs.util.AnalysisException;
 import dk.brics.tajs.util.Strings;
 
 import java.io.PrintWriter;
+import java.io.Serializable;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
@@ -35,7 +37,7 @@ import static dk.brics.tajs.util.Collections.newSet;
  * Must be non-empty.
  * Has a unique entry node and proceeds through the sequence unless exceptions are thrown.
  */
-public class BasicBlock {
+public class BasicBlock implements Serializable {
 
     /**
      * Unique index of this block in the flow graph, or -1 if not belonging to a flow graph.
@@ -45,7 +47,12 @@ public class BasicBlock {
     /**
      * Block order, used for worklist prioritization.
      */
-    private int order = -1;
+    private int worklistOrder = -1;
+
+    /**
+     * Block order, topological.
+     */
+    private int topologicalOrder = -1;
 
     /**
      * The nodes in this block.
@@ -133,17 +140,31 @@ public class BasicBlock {
     }
 
     /**
-     * Sets the block order.
+     * Sets the worklist block order.
      */
-    void setOrder(int order) {
-        this.order = order;
+    void setWorklistOrder(int worklistOrder) {
+        this.worklistOrder = worklistOrder;
     }
 
     /**
-     * Returns the block order.
+     * Returns the worklist block order.
      */
-    public int getOrder() {
-        return order;
+    public int getWorklistOrder() {
+        return worklistOrder;
+    }
+
+    /**
+     * Sets the topological block order.
+     */
+    void setTopologicalOrder(int topologicalOrder) {
+        this.topologicalOrder = topologicalOrder;
+    }
+
+    /**
+     * Returns the topological block order.
+     */
+    public int getTopologicalOrder() {
+        return topologicalOrder;
     }
 
     /**
@@ -265,17 +286,17 @@ public class BasicBlock {
             if (d != null)
                 s.append("(~").append(d.getIndex()).append(")");
             s.append(": ").append(n);
-            if (n.isRegistersDone())
-                s.append('*');
+            if (n.getImplicitAfterCall() != null)
+                s.append(" [implicitAfterCall]");
             s.append(" (").append(n.getSourceLocation()).append(")\n");
         }
         s.append("    ->[");
-        boolean first = true;
         if (Options.get().isDebugOrTestEnabled()) {
             List<BasicBlock> ss = newList(successors);
             sort(ss);
             successors = ss;
         }
+        boolean first = true;
         for (BasicBlock b : successors) {
             if (first)
                 first = false;
@@ -291,7 +312,7 @@ public class BasicBlock {
     }
 
     private static void sort(List<BasicBlock> blocks) {
-        Collections.sort(blocks, (o1, o2) -> o1.getIndex() - o2.getIndex());
+        blocks.sort(Comparator.comparingInt(BasicBlock::getIndex));
     }
 
     /**
@@ -317,8 +338,6 @@ public class BasicBlock {
             if (d != null)
                 pw.print("(~" + d.getIndex() + ")");
             pw.print(": " + Strings.escape(n.toString()));
-            if (n.isRegistersDone())
-                pw.print('*');
         }
         pw.print("}\" ] " + "\n");
         if (standalone) {
@@ -331,32 +350,34 @@ public class BasicBlock {
      * Perform a consistency check of the basic block.
      */
     public void check(BasicBlock entry, BasicBlock ordinary_exit, BasicBlock exceptional_exit, Set<Integer> seen_blocks, Set<Integer> seen_nodes) {
-        if (this != ordinary_exit && this != exceptional_exit && successors.isEmpty())
-            throw new AnalysisException("No successor for block: " + toString());
+        if (this != ordinary_exit && this != exceptional_exit && !(this.getLastNode() instanceof ThrowNode) && successors.isEmpty())
+            throw new AnalysisException("No successor for block: " + this);
         if (isEmpty())
-            throw new AnalysisException("Basic block is empty: " + toString());
+            throw new AnalysisException("Basic block is empty: " + this);
         if (getSourceLocation().getLineNumber() < 0)
-            throw new AnalysisException("Negative line number in source information for block: " + toString());
-        if (order == -1)
-            throw new AnalysisException("Block order has not been set: " + toString());
+            throw new AnalysisException("Negative line number in source information for block: " + this);
+        if (worklistOrder == -1)
+            throw new AnalysisException("Block worklistOrder has not been set: " + this);
+        if (topologicalOrder == -1)
+            throw new AnalysisException("Block topologicalOrder has not been set: " + this);
         if (index == -1)
-            throw new AnalysisException("Block has not been added to flow graph: " + toString());
+            throw new AnalysisException("Block has not been added to flow graph: " + this);
         if (entry_block == null)
-            throw new AnalysisException("Block does not have an entry_block: " + toString());
+            throw new AnalysisException("Block does not have an entry_block: " + this);
         if (entry_block == this && entry_predecessor_block == null && this != entry) {
-            throw new AnalysisException("Block with self-entry_block does not have an entry_predecessor_block, and it is not the functionEntry-block: " + toString());
+            throw new AnalysisException("Block with self-entry_block does not have an entry_predecessor_block, and it is not the functionEntry-block: " + this);
         }
         if (entry_block != this && entry_predecessor_block != null) {
-            throw new AnalysisException("Block without self-entry_block has an entry_predecessor_block: " + toString());
+            throw new AnalysisException("Block without self-entry_block has an entry_predecessor_block: " + this);
         }
         if ((this == entry || this == ordinary_exit || this == exceptional_exit) && entry != entry_block)
             throw new AnalysisException("function-entry or function-exit does not have the function-entry as entry_block. entry_block is: " + entry_block);
         if (!seen_blocks.add(index))
-            throw new AnalysisException("Duplicate block index: " + toString());
+            throw new AnalysisException("Duplicate block index: " + this);
         if (exceptional_exit == null && canThrowExceptions())
-            throw new AnalysisException("No exception handler for block " + toString());
+            throw new AnalysisException("No exception handler for block " + this);
         if (this == ordinary_exit && !(getFirstNode() instanceof ReturnNode))
-            throw new AnalysisException("Last node in function is not a return node: " + toString());
+            throw new AnalysisException("Last node in function is not a return node: " + this);
         for (AbstractNode node : nodes) {
             if (node.getIndex() == -1)
                 throw new AnalysisException("Node has not been added to flow graph: " + node);
@@ -369,28 +390,28 @@ public class BasicBlock {
     }
 
     /**
-     * Returns the entry block
+     * Returns the entry block.
      */
     public BasicBlock getEntryBlock() {
         return entry_block;
     }
 
     /**
-     * Sets the entry block
+     * Sets the entry block.
      */
     public void setEntryBlock(BasicBlock entry_block) {
         this.entry_block = entry_block;
     }
 
     /**
-     * Returns the entry_predecessor_block, or null if not set.
+     * Returns the entry predecessor block, or null if not set.
      */
     public BasicBlock getEntryPredecessorBlock() {
         return entry_predecessor_block;
     }
 
     /**
-     * Sets the entry_predecessor_block
+     * Sets the entry predecessor block.
      */
     public void setEntryPredecessorBlock(BasicBlock entry_predecessor_block) {
         this.entry_predecessor_block = entry_predecessor_block;

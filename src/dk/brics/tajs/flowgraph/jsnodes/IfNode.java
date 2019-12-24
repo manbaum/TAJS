@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -98,7 +98,7 @@ public class IfNode extends Node {
     @Override
     public void check(BasicBlock b) {
         if (condition_reg == NO_VALUE)
-            throw new AnalysisException("Invalid condition register: " + toString());
+            throw new AnalysisException("Invalid condition register: " + this);
         if (this != b.getLastNode())
             throw new AnalysisException("If node not at the end of the block: " + b);
         Collection<BasicBlock> successors = b.getSuccessors();

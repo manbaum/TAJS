@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,9 @@
 package dk.brics.tajs.options;
 
 import org.apache.log4j.Logger;
+import org.kohsuke.args4j.CmdLineParser;
 
+import java.io.StringWriter;
 import java.util.Map.Entry;
 
 /**
@@ -63,9 +65,33 @@ public class Options {
     }
 
     /**
-     * Parses command line arguments <em>in addition to</em> the already set options.
+     * Prints a description of the available options.
      */
-    public static void parse(String[] args) {
-        optionValues = new OptionValues(optionValues, args);
+    public static void showUsage() {
+        StringWriter w = new StringWriter();
+        CmdLineParser p = new CmdLineParser(optionValues);
+        p.getProperties().withUsageWidth(150);
+        p.printUsage(w, null);
+        w.write("\n Arguments to option '-unsound':\n\n");
+        CmdLineParser pu = new CmdLineParser(optionValues.getUnsoundness());
+        pu.getProperties().withUsageWidth(150);
+        pu.printUsage(w, null);
+        log.info(w);
+    }
+
+    public static class Constants {
+
+        private Constants() {}
+
+        // General precision/performance tuning
+        public static final int NUMBER_OF_UNKNOWN_ARGUMENTS_TO_KEEP_DISJOINT = 10;
+        public static final int MAX_CONTEXT_SPECIALIZATION = 10;
+        public static final int ARRAY_TRUNCATION_BOUND = 25;
+        public static final int STRING_CONCAT_SETS_BOUND = 15;
+        public static final int STRING_SETS_BOUND = 250;
+
+        // Fine performance tuning
+        public static final int HYBRID_ARRAY_HASH_SET_ARRAY_SIZE = 8;
+        public static final int HYBRID_ARRAY_HASH_MAP_ARRAY_SIZE = 8;
     }
 }

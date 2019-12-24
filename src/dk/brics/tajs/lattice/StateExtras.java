@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package dk.brics.tajs.lattice;
 
 import dk.brics.tajs.options.Options;
+import dk.brics.tajs.util.Collectors;
 import org.apache.log4j.Logger;
 
 import java.util.Collection;
@@ -24,6 +25,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static dk.brics.tajs.util.Collections.addAllToMapSet;
 import static dk.brics.tajs.util.Collections.newMap;
@@ -50,7 +52,7 @@ public class StateExtras {
     private boolean writable_may_maps;
 
     protected StateExtras() {
-        setToNone();
+        setToBottom();
     }
 
     protected StateExtras(StateExtras x) {
@@ -93,7 +95,7 @@ public class StateExtras {
     /**
      * Resets all maps.
      */
-    public void setToNone() {
+    public void setToBottom() {
         if (Options.get().isCopyOnWriteDisabled()) {
             may_sets = newMap();
             writable_may_sets = true;
@@ -254,12 +256,7 @@ public class StateExtras {
      */
     public void addToMayMap(String name, String key, Collection<ObjectLabel> labels) {
         makeMayMapsWritable();
-        Map<String, Set<ObjectLabel>> maymap = may_maps.get(name);
-        if (maymap == null) {
-            maymap = newMap();
-            may_maps.put(name, maymap);
-        }
-        addAllToMapSet(maymap, key, labels);
+        addAllToMapSet(may_maps.computeIfAbsent(name, k -> newMap()), key, labels);
     }
 
     /**
@@ -283,76 +280,29 @@ public class StateExtras {
             }
         }
         Set<ObjectLabel> maydefault = may_maps_default.get(name);
-        maydefault = maydefault == null ? Collections.<ObjectLabel>emptySet() : maydefault;
+        maydefault = maydefault == null ? Collections.emptySet() : maydefault;
         result.addAll(maydefault);
         return Collections.unmodifiableSet(result);
     }
 
-//    /**
-//     * Replaces all object labels according to the given map.
-//     */
-//    public void replaceObjectLabels(Map<ObjectLabel, ObjectLabel> m) {
-//        makeMayMapsWritable();
-//        makeMaySetsWritable();
-//        makeMustSetsWritable();
-//        replaceObjectLabels2(may_sets, m);
-//        replaceObjectLabels2(must_sets, m);
-//        replaceObjectLabels3(may_maps, m);
-//        replaceObjectLabels2(may_maps_default, m);
-//    }
-//
-//    private static void replaceObjectLabels2(Map<String, Set<ObjectLabel>> x, Map<ObjectLabel, ObjectLabel> m) {
-//        for (Entry<String, Set<ObjectLabel>> me : x.entrySet())
-//            me.setValue(Renaming.apply(m, me.getValue()));
-//    }
-//
-//    private static void replaceObjectLabels3(Map<String, Map<String, Set<ObjectLabel>>> x, Map<ObjectLabel, ObjectLabel> m) {
-//        for (Entry<String, Map<String, Set<ObjectLabel>>> me : x.entrySet())
-//            for (Entry<String, Set<ObjectLabel>> me2 : me.getValue().entrySet())
-//                me2.setValue(Renaming.apply(m, me2.getValue()));
-//    }
+    /**
+     * Replaces oldlabel by newlabel in all object label sets.
+     */
+    public void replaceObjectLabel(ObjectLabel oldlabel, ObjectLabel newlabel) {
+        makeMaySetsWritable();
+        makeMayMapsWritable();
+        Stream<Set<ObjectLabel>> sets = Stream.concat(
+                may_sets.values().stream(),
+                may_maps.values().stream()
+                        .flatMap(may_map -> may_map.values().stream()));
+        sets.filter(members -> members.contains(oldlabel))
+                .forEach(members -> {
+                    members.remove(oldlabel);
+                    members.add(newlabel);
+                });
+    }
 
-//    /**
-//     * Removes the parts that are also in 'other'.
-//     */
-//    public void remove(StateExtras other) {
-//        makeMaySetsWritable();
-//        makeMustSetsWritable();
-//        makeMayMapsWritable();
-//        for (Entry<String, Set<ObjectLabel>> me : may_sets.entrySet()) {
-//            String s = me.getKey();
-//            Set<ObjectLabel> so = me.getValue();
-//            Set<ObjectLabel> so_other = other.may_sets.get(s);
-//            if (so_other != null)
-//                so.removeAll(so_other);
-//        }
-//        for (Entry<String, Set<ObjectLabel>> me : must_sets.entrySet()) {
-//            String s = me.getKey();
-//            Set<ObjectLabel> so = me.getValue();
-//            Set<ObjectLabel> so_other = other.must_sets.get(s);
-//            if (so_other != null)
-//                so.removeAll(so_other);
-//        }
-//        for (Entry<String, Map<String, Set<ObjectLabel>>> me1 : may_maps.entrySet()) {
-//            String s1 = me1.getKey();
-//            Map<String, Set<ObjectLabel>> mso = me1.getValue();
-//            Map<String, Set<ObjectLabel>> mso_other = other.may_maps.get(s1);
-//            for (Entry<String, Set<ObjectLabel>> me2 : mso.entrySet()) {
-//                String s2 = me2.getKey();
-//                Set<ObjectLabel> so = me2.getValue();
-//                if (mso_other != null) {
-//                    Set<ObjectLabel> so_other = mso_other.get(s2);
-//                    if (so_other != null)
-//                        so.removeAll(so_other);
-//                }
-//            }
-//        }
-//        for (Entry<String, Set<ObjectLabel>> me : may_maps_default.entrySet()) {
-//            String s = me.getKey();
-//            Set<ObjectLabel> so = me.getValue();
-//            Set<ObjectLabel> so_other = other.may_maps_default.get(s);
-//            if (so_other != null)
-//                so.removeAll(so_other);
-//        }
-//    }
+    public Set<ObjectLabel> getValuesFromMayMap(String name) {
+        return may_maps.getOrDefault(name, newMap()).values().stream().flatMap(Set::stream).collect(Collectors.toSet());
+    }
 }

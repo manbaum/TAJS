@@ -1,4 +1,22 @@
+/*
+ * Copyright 2009-2019 Aarhus University
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package dk.brics.tajs.analysis.nativeobjects.concrete;
+
+import java.util.Objects;
 
 public class ConcreteRegularExpression implements ConcreteValue {
 
@@ -10,11 +28,14 @@ public class ConcreteRegularExpression implements ConcreteValue {
 
     private final ConcreteBoolean multiline;
 
-    public ConcreteRegularExpression(ConcreteString source, ConcreteBoolean global, ConcreteBoolean ignoreCase, ConcreteBoolean multiline) {
+    private final ConcreteNumber lastIndex;
+
+    public ConcreteRegularExpression(ConcreteString source, ConcreteBoolean global, ConcreteBoolean ignoreCase, ConcreteBoolean multiline, ConcreteNumber lastIndex) {
         this.source = source;
         this.global = global;
         this.ignoreCase = ignoreCase;
         this.multiline = multiline;
+        this.lastIndex = lastIndex;
     }
 
     @Override
@@ -38,8 +59,36 @@ public class ConcreteRegularExpression implements ConcreteValue {
         return source;
     }
 
+    public ConcreteNumber getLastIndex() {
+        return lastIndex;
+    }
+
     @Override
     public String toSourceCode() {
-        return String.format("/%s/%s%s%s", source.toRegExpSourceCodeComponent(), global.getBooleanValue() ? "g" : "", ignoreCase.getBooleanValue() ? "i" : "", multiline.getBooleanValue() ? "m" : "");
+        return String.format("(function(){ var r = /%s/%s%s%s; r.lastIndex = %s; return r;})()", source.toRegExpSourceCodeComponent(), global.getBooleanValue() ? "g" : "", ignoreCase.getBooleanValue() ? "i" : "", multiline.getBooleanValue() ? "m" : "", lastIndex.toSourceCode());
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        ConcreteRegularExpression that = (ConcreteRegularExpression) o;
+
+        if (!Objects.equals(source, that.source)) return false;
+        if (!Objects.equals(global, that.global)) return false;
+        if (!Objects.equals(ignoreCase, that.ignoreCase)) return false;
+        if (!Objects.equals(multiline, that.multiline)) return false;
+        return Objects.equals(lastIndex, that.lastIndex);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = source != null ? source.hashCode() : 0;
+        result = 31 * result + (global != null ? global.hashCode() : 0);
+        result = 31 * result + (ignoreCase != null ? ignoreCase.hashCode() : 0);
+        result = 31 * result + (multiline != null ? multiline.hashCode() : 0);
+        result = 31 * result + (lastIndex != null ? lastIndex.hashCode() : 0);
+        return result;
     }
 }

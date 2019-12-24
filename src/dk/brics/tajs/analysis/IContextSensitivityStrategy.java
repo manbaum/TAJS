@@ -1,3 +1,19 @@
+/*
+ * Copyright 2009-2019 Aarhus University
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package dk.brics.tajs.analysis;
 
 import dk.brics.tajs.flowgraph.AbstractNode;
@@ -6,7 +22,6 @@ import dk.brics.tajs.flowgraph.jsnodes.BeginForInNode;
 import dk.brics.tajs.flowgraph.jsnodes.BeginLoopNode;
 import dk.brics.tajs.flowgraph.jsnodes.EndLoopNode;
 import dk.brics.tajs.lattice.Context;
-import dk.brics.tajs.lattice.HeapContext;
 import dk.brics.tajs.lattice.ObjectLabel;
 import dk.brics.tajs.lattice.State;
 import dk.brics.tajs.lattice.Value;
@@ -19,17 +34,27 @@ public interface IContextSensitivityStrategy {
     /**
      * Constructs a heap context for a function object.
      */
-    HeapContext makeFunctionHeapContext(Function fun, Solver.SolverInterface c);
+    Context makeFunctionHeapContext(Function fun, Solver.SolverInterface c);
 
     /**
      * Constructs a heap context for objects related to a call.
      */
-    HeapContext makeActivationAndArgumentsHeapContext(State state, ObjectLabel function, FunctionCalls.CallInfo callInfo, Solver.SolverInterface c);
+    Context makeActivationAndArgumentsHeapContext(State state, ObjectLabel function, FunctionCalls.CallInfo callInfo, Solver.SolverInterface c);
+
+    /**
+     * Constructs a heap context for an object created at 'new'.
+     */
+    Context makeConstructorHeapContext(State state, ObjectLabel function, FunctionCalls.CallInfo callInfo, Solver.SolverInterface c);
 
     /**
      * Constructs a heap context for an object literal.
      */
-    HeapContext makeObjectLiteralHeapContext(AbstractNode node, State state);
+    Context makeObjectLiteralHeapContext(AbstractNode node, State state, Solver.SolverInterface c);
+
+    /**
+     * Constructs a heap context for a boxed primitive.
+     */
+    Context makeBoxedPrimitiveHeapContext(Value primitive);
 
     /**
      * Constructs the initial context.
@@ -37,7 +62,7 @@ public interface IContextSensitivityStrategy {
     Context makeInitialContext();
 
     /**
-     * Constructs a context for call.
+     * Constructs a context for a call.
      */
     Context makeFunctionEntryContext(State state, ObjectLabel function, FunctionCalls.CallInfo callInfo, Solver.SolverInterface c);
 

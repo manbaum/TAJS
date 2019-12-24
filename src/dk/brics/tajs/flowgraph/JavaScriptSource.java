@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,20 +23,17 @@ public class JavaScriptSource {
 
     private final Kind kind;
 
-    private final String fileName;
-
     private final String code;
 
     private final int lineOffset;
 
     private final int columnOffset;
 
-    private final String eventName;
+    private final EventType eventkind;
 
-    private JavaScriptSource(Kind kind, String eventName, String fileName, String code, int lineOffset, int columnOffset) {
+    private JavaScriptSource(Kind kind, EventType eventkind, String code, int lineOffset, int columnOffset) {
         this.kind = kind;
-        this.eventName = eventName;
-        this.fileName = fileName;
+        this.eventkind = eventkind;
         this.code = code;
         this.lineOffset = lineOffset;
         this.columnOffset = columnOffset;
@@ -45,35 +42,33 @@ public class JavaScriptSource {
     /**
      * Constructs a new code snippet descriptor for JavaScript code in a separate file.
      */
-    public static JavaScriptSource makeFileCode(String fileName, String code) {
-        return new JavaScriptSource(Kind.FILE, null, fileName, code, 0, 0);
+    public static JavaScriptSource makeFileCode(String code) {
+        return new JavaScriptSource(Kind.FILE, null, code, 0, 0);
     }
 
     /**
      * Constructs a new code snippet descriptor for JavaScript code embedded in a 'script' tag in an HTML file.
      *
-     * @param fileName     file nam or URL of the code
      * @param code         the JavaScript code
      * @param lineOffset   number of lines preceding the code
      * @param columnOffset number of columns preceding the first line of the code
      * @return new JavaScriptSource object
      */
-    public static JavaScriptSource makeEmbeddedCode(String fileName, String code, int lineOffset, int columnOffset) {
-        return new JavaScriptSource(Kind.EMBEDDED, null, fileName, code, lineOffset, columnOffset);
+    public static JavaScriptSource makeEmbeddedCode(String code, int lineOffset, int columnOffset) {
+        return new JavaScriptSource(Kind.EMBEDDED, null, code, lineOffset, columnOffset);
     }
 
     /**
      * Constructs a new code snippet descriptor for JavaScript code embedded in an event handler attribute in an HTML file.
      *
-     * @param eventName    event kind, e.g. "click" or "submit"
-     * @param fileName     file nam or URL of the code
+     * @param kind    event kind, e.g. "click" or "submit"
      * @param code         the JavaScript code
      * @param lineOffset   number of lines preceding the code
      * @param columnOffset number of columns preceding the first line of the code
      * @return new JavaScriptSource object
      */
-    public static JavaScriptSource makeEventHandlerCode(String eventName, String fileName, String code, int lineOffset, int columnOffset) {
-        return new JavaScriptSource(Kind.EVENTHANDLER, eventName, fileName, code, lineOffset, columnOffset);
+    public static JavaScriptSource makeEventHandlerCode(EventType kind, String code, int lineOffset, int columnOffset) {
+        return new JavaScriptSource(Kind.EVENTHANDLER, kind, code, lineOffset, columnOffset);
     }
 
     /**
@@ -81,13 +76,6 @@ public class JavaScriptSource {
      */
     public Kind getKind() {
         return kind;
-    }
-
-    /**
-     * Returns the file name associated with the code.
-     */
-    public String getFileName() {
-        return fileName;
     }
 
     /**
@@ -112,10 +100,10 @@ public class JavaScriptSource {
     }
 
     /**
-     * Returns the event name, or null if not event handler code.
+     * Returns the event kind, or null if not event handler code.
      */
-    public String getEventName() {
-        return eventName;
+    public EventType getEventKind() {
+        return eventkind;
     }
 
     public enum Kind {

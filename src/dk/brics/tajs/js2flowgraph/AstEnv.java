@@ -1,13 +1,26 @@
+/*
+ * Copyright 2009-2019 Aarhus University
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package dk.brics.tajs.js2flowgraph;
 
-import com.google.javascript.jscomp.parsing.parser.trees.DoWhileStatementTree;
-import com.google.javascript.jscomp.parsing.parser.trees.ForInStatementTree;
-import com.google.javascript.jscomp.parsing.parser.trees.ForStatementTree;
 import com.google.javascript.jscomp.parsing.parser.trees.ParseTree;
-import com.google.javascript.jscomp.parsing.parser.trees.WhileStatementTree;
 import dk.brics.tajs.flowgraph.AbstractNode;
 import dk.brics.tajs.flowgraph.BasicBlock;
 import dk.brics.tajs.flowgraph.Function;
+import dk.brics.tajs.flowgraph.jsnodes.IfNode;
 import dk.brics.tajs.util.AnalysisException;
 import dk.brics.tajs.util.Pair;
 
@@ -49,9 +62,14 @@ public class AstEnv {
 
     /**
      * Set if processing at statement level.
-     * (Used for setting {@link AbstractNode#registers_done}.)
+     * (Currently unused.)
      */
     private Boolean statementLevel = null;
+
+    /**
+     * Set to true if processing a typeof operand.
+     */
+    private boolean typeofOperand = false;
 
     /**
      * Manages registers for the current function.
@@ -106,6 +124,11 @@ public class AstEnv {
      * The label-name of a labelled loop statement
      */
     private Pair<ParseTree /* loop-statement type */, String> loopLabelName;
+
+    /**
+     * Expressions that are used in as a condition value.
+     */
+    private Pair<ParseTree, IfNode> enclosingIfNode;
 
     /**
      * Constructs an enviromentment with a parent environment.
@@ -353,6 +376,13 @@ public class AstEnv {
     }
 
     /**
+     * Returns true if currently processing a typeof operand (excluding subexpressions of the operand).
+     */
+    public boolean isTypeofOperand() {
+        return typeofOperand;
+    }
+
+    /**
      * Creates a new environment with the given append block.
      */
     public AstEnv makeAppendBlock(BasicBlock b) {
@@ -458,6 +488,15 @@ public class AstEnv {
     }
 
     /**
+     * Creates a new environment and sets the typeof flag.
+     */
+    public AstEnv makeTypeofOperand() {
+        AstEnv newEnv = new AstEnv(this);
+        newEnv.typeofOperand = true;
+        return newEnv;
+    }
+
+    /**
      * Creates a new environment with the given 'this' register.
      */
     public AstEnv makeThisRegister(int r) {
@@ -507,10 +546,7 @@ public class AstEnv {
 
     public AstEnv makeLoopLabelName(ParseTree loopStatement, String name) {
         assert (loopStatement != null && name != null);
-        assert (loopStatement instanceof ForStatementTree ||
-                loopStatement instanceof WhileStatementTree ||
-                loopStatement instanceof ForInStatementTree ||
-                loopStatement instanceof DoWhileStatementTree);
+        assert (FunctionBuilderHelper.isLoopStatement(loopStatement));
         AstEnv newEnv = new AstEnv(this);
         newEnv.loopLabelName = Pair.make(loopStatement, name);
         return newEnv;
@@ -534,5 +570,22 @@ public class AstEnv {
             return parentEnv.getLoopLabelName(loopStatement);
         }
         throw new AnalysisException("No loop label name present (query with hasLoopLabel first)");
+    }
+
+    public AstEnv makeEnclosingIfNode(ParseTree condition, IfNode ifNode) {
+        assert (condition != null && ifNode != null);
+        AstEnv newEnv = new AstEnv(this);
+        newEnv.enclosingIfNode = Pair.make(condition, ifNode);
+        return newEnv;
+    }
+
+    public IfNode getEnclosingIfNode(ParseTree expressionTree) {
+        if (enclosingIfNode != null && enclosingIfNode.getFirst() == expressionTree) {
+            return enclosingIfNode.getSecond();
+        }
+        if (parentEnv != null) {
+            return parentEnv.getEnclosingIfNode(expressionTree);
+        }
+        return null;
     }
 }

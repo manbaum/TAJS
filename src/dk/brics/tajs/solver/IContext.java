@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ public interface IContext<ContextType extends IContext<?>> {
     /**
      * Reconstructs the context at function or for-in entry.
      */
-    ContextType makeEntryContext();
+    ContextType getContextAtEntry();
 
     /**
      * Checks whether this context is equal to the given object.

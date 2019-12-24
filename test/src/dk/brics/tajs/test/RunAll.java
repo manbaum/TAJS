@@ -13,9 +13,7 @@ import org.junit.runners.Suite;
         // medium tests
         RunMedium.class,
         // slow tests
-        TestJQueryUse.class,
-        TestJQueryUse_unanalyzable.class,
-        TestApps.class
+//        RunSlow.class
 })
 public class RunAll {
 

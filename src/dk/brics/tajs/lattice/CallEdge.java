@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,16 +25,23 @@ public class CallEdge implements ICallEdge<State> {
 
     private State state;
 
+    private FunctionTypeSignatures functionTypeSignatures;
+
     /**
      * Constructs a new edge object.
      */
-    public CallEdge(State state) {
+    public CallEdge(State state, FunctionTypeSignatures functionTypeSignatures) {
         this.state = state;
+        this.functionTypeSignatures = functionTypeSignatures;
     }
 
     @Override
     public State getState() {
         return state;
+    }
+
+    public FunctionTypeSignatures getFunctionTypeSignatures() {
+        return functionTypeSignatures;
     }
 
     @Override

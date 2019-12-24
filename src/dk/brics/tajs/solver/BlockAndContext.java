@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,6 +31,8 @@ public final class BlockAndContext<ContextType extends IContext<?>> {
      * Constructs a new pair.
      */
     public BlockAndContext(BasicBlock b, ContextType c) {
+        if (b == null || c == null)
+            throw new NullPointerException();
         this.b = b;
         this.c = c;
     }
@@ -39,7 +41,7 @@ public final class BlockAndContext<ContextType extends IContext<?>> {
      * Constructs a new pair using the entry block of the given block and the entry context of the given context.
      */
     public static <ContextType extends IContext<ContextType>> BlockAndContext<ContextType> makeEntry(BasicBlock b, ContextType c) {
-        return new BlockAndContext<>(b.getEntryBlock(), c.makeEntryContext());
+        return new BlockAndContext<>(b.getEntryBlock(), c.getContextAtEntry());
     }
 
     /**
@@ -78,6 +80,6 @@ public final class BlockAndContext<ContextType extends IContext<?>> {
 
     @Override
     public String toString() {
-        return "block " + b.getIndex() + ", context " + c;
+        return "block " + b.getIndex() + ", context {" + c + "}";
     }
 }

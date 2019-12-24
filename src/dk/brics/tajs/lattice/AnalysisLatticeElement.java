@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,11 +24,15 @@ import dk.brics.tajs.solver.BlockAndContext;
 import dk.brics.tajs.solver.CallGraph;
 import dk.brics.tajs.solver.IAnalysisLatticeElement;
 import dk.brics.tajs.util.AnalysisException;
+import dk.brics.tajs.util.Collectors;
 import org.apache.log4j.Logger;
 
+import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 
 import static dk.brics.tajs.util.Collections.newMap;
+import static dk.brics.tajs.util.Collections.newSet;
 
 /**
  * Global analysis lattice element.
@@ -49,6 +53,11 @@ public class AnalysisLatticeElement implements
      * Call graph.
      */
     private final CallGraph<State, Context, CallEdge> call_graph;
+
+    /**
+     * Total number of states in block_entry_states.
+     */
+    private int number_of_states;
 
     /**
      * Constructs a new global analysis lattice element.
@@ -94,12 +103,12 @@ public class AnalysisLatticeElement implements
 
     @Override
     public Map<Context, State> getStates(BasicBlock block) {
-        Map<Context, State> m = block_entry_states.get(block);
-        if (m == null) {
-            m = newMap();
-            block_entry_states.put(block, m);
-        }
-        return m;
+        return block_entry_states.computeIfAbsent(block, k -> newMap());
+    }
+
+    @Override
+    public Collection<State> getStatesWithEntryContext(BasicBlock block, Context entryContext) {
+        return getStates(block).entrySet().stream().filter(e -> e.getKey().getContextAtEntry().equals(entryContext)).map(Map.Entry::getValue).collect(Collectors.toList());
     }
 
 //    @Override
@@ -108,26 +117,30 @@ public class AnalysisLatticeElement implements
 //    }
 
     @Override
-    public MergeResult propagate(State s, BasicBlock b, Context c, boolean localize) {
+    public MergeResult propagate(State s, BlockAndContext<Context> bc, boolean localize) {
         if (log.isDebugEnabled()) {
-            log.debug("propagating state to block " + b.getIndex() + " at " + b.getSourceLocation());
+            log.debug("propagating state to block " + bc.getBlock().getIndex() + " at " + bc.getBlock().getSourceLocation());
             if (Options.get().isIntermediateStatesEnabled() && localize) {
                 log.debug("before localization: " + s);
             }
         }
         boolean add;
         String diff = null;
-        Map<Context, State> m = getStates(b);
-        State state_current = m.get(c);
+        Map<Context, State> m = getStates(bc.getBlock());
+        State state_current = m.get(bc.getContext());
         if (state_current == null) { // existing state at (b,c) is implicitly bottom, so just store s
             add = true;
             if (localize) {
                 s.localize(null);
+                Set<BlockAndContext<Context>> fs = newSet(s.getStackedFunctions());
+                fs.add(new BlockAndContext<>(bc.getBlock(), bc.getContext()));
+                s.setStacked(null, fs);
             }
-            s.setBasicBlock(b);
-            s.setContext(c);
-            m.put(c, s);
+            s.setBasicBlock(bc.getBlock());
+            s.setContext(bc.getContext());
+            m.put(bc.getContext(), s);
             state_current = s;
+            number_of_states++;
         } else { // a nontrivial state already exists at (b,c), so join s into it
             if (Options.get().isIntermediateStatesEnabled()) {
                 if (log.isDebugEnabled())
@@ -148,8 +161,12 @@ public class AnalysisLatticeElement implements
                 if (log.isDebugEnabled())
                     log.debug("after localization, before join: " + s);
             }
-            add = state_current.propagate(s, localize);
-            s.getSolverInterface().getMonitoring().visitJoin();
+            boolean backedge = !localize && state_current.getBasicBlock().getTopologicalOrder() <= s.getBasicBlock().getTopologicalOrder();
+            boolean recursive = localize && s.getStackedFunctions().contains(new BlockAndContext<>(state_current.getBasicBlock(), state_current.getContext()));
+            long time = System.currentTimeMillis();
+            add = state_current.propagate(s, localize, backedge || recursive);
+            long elapsed = System.currentTimeMillis() - time;
+            s.getSolverInterface().getMonitoring().visitJoin(elapsed);
             if (Options.get().isNewFlowEnabled()) {
                 diff = state_current.diff(state_old);
             }
@@ -157,10 +174,15 @@ public class AnalysisLatticeElement implements
         if (add) {
             if (Options.get().isIntermediateStatesEnabled()) {
                 if (log.isDebugEnabled())
-                    log.debug("Added block entry state at block " + b.getIndex() + ": " + state_current);
+                    log.debug("Added block entry state at block " + bc.getBlock().getIndex() + ": " + state_current);
             }
             return new MergeResult(diff);
         } else
             return null;
+    }
+
+    @Override
+    public int getNumberOfStates() {
+        return number_of_states;
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package dk.brics.tajs.util;
 
+import java.util.Collection;
 import java.util.Random;
 import java.util.regex.Pattern;
 
@@ -29,14 +30,17 @@ public class Strings {
     static private Random rnd;
 
     static private final Pattern NUMBER =
-            Pattern.compile("\\-?(([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][-+][0-9]+)?|Infinity)|NaN"); // TODO: check that this over-approximates the possible output of Number.toString
+            Pattern.compile("-?(([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][-+][0-9]+)?|Infinity)|NaN"); // TODO: check that this over-approximates the possible output of Number.toString
+
+    static private final Pattern NUMBER_CHARACTERS = // derived from NUMBER
+            Pattern.compile("-|\\+|\\.|[0-9]|[aeEfIinNty]");
 
     static private final Pattern IDENTIFIER =
             Pattern.compile("[\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}$_]" +
-                    "[\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Mn}\\p{Mc}\\p{Nd}\\p{Pc}]*");
+                    "[\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Mn}\\p{Mc}\\p{Nd}\\p{Pc}$_]*");
 
     static private final Pattern IDENTIFIERPARTS =
-    		Pattern.compile("[\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Mn}\\p{Mc}\\p{Nd}\\p{Pc}]*");
+    		Pattern.compile("[\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Mn}\\p{Mc}\\p{Nd}\\p{Pc}$_]*");
 
     // TODO: what about Unicode escape sequences in IDENTIFIER and IDENTIFIERPARTS?
 
@@ -56,9 +60,18 @@ public class Strings {
 
     /**
      * Escapes special characters in the given string.
-     * Special characters are all Unicode chars except 0x20-0x7e but including \, ", {, and }.
+     * Special characters are all Unicode chars except 0x20-0x7e but including \, ", <, >, |, {, and }.
      */
     public static String escape(String s) {
+        return escape(s, false);
+    }
+
+    /**
+     * Escapes special characters in the given string.
+     * Special characters are all Unicode chars except 0x20-0x7e but including \, ".
+     * If onlyEscapeEscapeSequences is false <, >, |, {, and } are also escaped.
+     */
+    public static String escape(String s, boolean onlyEscapeEscapeSequences) {
         if (s == null)
             return null;
         StringBuilder b = new StringBuilder();
@@ -87,16 +100,19 @@ public class Strings {
                     b.append("\\f");
                     break;
                 case '<':
-                    b.append("\\<");
+                    b.append(onlyEscapeEscapeSequences ? c : "\\<");
                     break;
                 case '>':
-                    b.append("\\>");
+                    b.append(onlyEscapeEscapeSequences ? c : "\\>");
                     break;
                 case '{':
-                    b.append("\\{");
+                    b.append(onlyEscapeEscapeSequences ? c : "\\{");
                     break;
                 case '}':
-                    b.append("\\}");
+                    b.append(onlyEscapeEscapeSequences ? c : "\\}");
+                    break;
+                case '|':
+                    b.append(onlyEscapeEscapeSequences ? c : "\\|");
                     break;
                 default:
                     if (c >= 0x20 && c <= 0x7e)
@@ -114,6 +130,13 @@ public class Strings {
     }
 
     /**
+     * Invokes {@link #escape(String)} on each string in the given collection.
+     */
+    public static Collection<String> escape(Collection<String> ss) {
+        return ss.stream().map(Strings::escape).collect(Collectors.toList());
+    }
+
+    /**
      * Escapes quotes and special characters in the (Javascript source) string.
      */
     public static String escapeSource(String s) {
@@ -122,20 +145,18 @@ public class Strings {
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);
-            switch (c) {
-                case '"':
-                    b.append("\\\"");
-                    break;
-                default:
-                    if (c >= 0x20 && c <= 0x7e)
-                        b.append(c);
-                    else {
-                        b.append("\\u");
-                        String t = Integer.toHexString(c & 0xffff);
-                        for (int j = 0; j + t.length() < 4; j++)
-                            b.append('0');
-                        b.append(t);
-                    }
+            if (c == '"') {
+                b.append("\\\"");
+            } else {
+                if (c >= 0x20 && c <= 0x7e)
+                    b.append(c);
+                else {
+                    b.append("\\u");
+                    String t = Integer.toHexString(c & 0xffff);
+                    for (int j = 0; j + t.length() < 4; j++)
+                        b.append('0');
+                    b.append(t);
+                }
             }
         }
         return b.toString();
@@ -163,7 +184,7 @@ public class Strings {
      * Checks whether the given string is a valid double, including Infinity, -Infinity, and NaN.
      * This is an over-approximation of the strings that may appear when number values are coerced to string values.
      */
-    public static boolean isNumber(String s) {
+    public static boolean isNumeric(String s) {
         return NUMBER.matcher(s).matches();
     }
 
@@ -285,7 +306,23 @@ public class Strings {
      * Checks whether the given string consists of valid identifier parts.
      */
     public static boolean isIdentifierParts(String s) {
-        return IDENTIFIERPARTS.matcher(s).matches();
+    	return IDENTIFIERPARTS.matcher(s).matches();
+    }
+
+    /**
+     * Checks whether the given string consists of valid identifier parts excluding identifiers.
+     */
+    public static boolean isOtherIdentifierParts(String s) {
+        return !isIdentifier(s) && IDENTIFIERPARTS.matcher(s).matches();
+    }
+
+    public static boolean containsNonNumberCharacters(String s) {
+        for (int i = 0; i < s.length(); i ++) {
+            if (!NUMBER_CHARACTERS.matcher(Character.toString(s.charAt(i))).matches()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -296,5 +333,18 @@ public class Strings {
         for (int i = 0; i < len; i++)
             sb.append(AB.charAt(rnd.nextInt(AB.length())));
         return sb.toString();
+    }
+
+    /**
+     * Returns the longest common prefix of the two given strings.
+     */
+    public static String getSharedPrefix(String a, String b) {
+        int prefixLength;
+        for (prefixLength = 0; prefixLength < a.length() && prefixLength < b.length(); prefixLength++) {
+            if (a.charAt(prefixLength) != b.charAt(prefixLength)) {
+                break;
+            }
+        }
+        return a.substring(0, prefixLength);
     }
 }

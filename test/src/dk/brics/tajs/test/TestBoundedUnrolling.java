@@ -1,10 +1,7 @@
 package dk.brics.tajs.test;
 
 import dk.brics.tajs.Main;
-import dk.brics.tajs.lattice.Context;
-import dk.brics.tajs.js2flowgraph.FunctionBuilder;
 import dk.brics.tajs.options.Options;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -19,7 +16,6 @@ public class TestBoundedUnrolling {
     @Test
     public void counterWhileLoop_belowBound() {
         Options.get().enableLoopUnrolling(10);
-        Misc.init();
         Misc.runSource(
                 "var i = 0;",
                 "while(i < 5){ i++; }",
@@ -30,7 +26,6 @@ public class TestBoundedUnrolling {
     @Test
     public void counterForLoop_belowBound() {
         Options.get().enableLoopUnrolling(10);
-        Misc.init();
         Misc.runSource(
                 "for(var i = 0; i < 5; i++){ }",
                 "TAJS_assert(i === 5);",
@@ -40,7 +35,6 @@ public class TestBoundedUnrolling {
     @Test
     public void sequencedCounterForLoops_belowBound() {
         Options.get().enableLoopUnrolling(10);
-        Misc.init();
         Misc.runSource(
                 "for(var i = 0; i < 5; i++){ }",
                 "for(; i < 10; i++){ }",
@@ -51,7 +45,6 @@ public class TestBoundedUnrolling {
     @Test
     public void nestedCounterForLoop_belowBound() {
         Options.get().enableLoopUnrolling(10);
-        Misc.init();
         Misc.runSource(
                 "var k = 0;",
                 "for(var i = 0; i < 5; i++){",
@@ -68,7 +61,6 @@ public class TestBoundedUnrolling {
     @Test
     public void stringShrinkingWhileLoop_belowBound() {
         Options.get().enableLoopUnrolling(10);
-        Misc.init();
         Misc.runSource(
                 "var s = 'abcdefg';",
                 "while(s){ s = s.substring(1); }",
@@ -79,7 +71,6 @@ public class TestBoundedUnrolling {
     @Test
     public void counterWhileLoop_aboveBound() {
         Options.get().enableLoopUnrolling(2);
-        Misc.init();
         Misc.runSource(
                 "var i = 0;",
                 "while(i < 5){ i++; }",
@@ -91,7 +82,6 @@ public class TestBoundedUnrolling {
     @Test
     public void counterForLoop_aboveBound() {
         Options.get().enableLoopUnrolling(2);
-        Misc.init();
         Misc.runSource(
                 "for(var i = 0; i < 5; i++){ }",
                 "TAJS_assert(i, 'isMaybeNumUInt');",
@@ -102,7 +92,6 @@ public class TestBoundedUnrolling {
     @Test
     public void sequencedCounterForLoops_aboveBound() {
         Options.get().enableLoopUnrolling(2);
-        Misc.init();
         Misc.runSource(
                 "for(var i = 0; i < 5; i++){ }",
                 "for(; i < 10; i++){ }",
@@ -114,7 +103,6 @@ public class TestBoundedUnrolling {
     @Test
     public void nestedCounterForLoop_aboveBound() {
         Options.get().enableLoopUnrolling(2);
-        Misc.init();
         Misc.runSource(
                 "var k = 0;",
                 "for(var i = 0; i < 5; i++){",
@@ -128,18 +116,6 @@ public class TestBoundedUnrolling {
                 "TAJS_assert(i, 'isMaybeSingleNum', false);",
                 "TAJS_assert(j, 'isMaybeSingleNum', false);",
                 "TAJS_assert(k, 'isMaybeSingleNum', false);",
-                "");
-    }
-
-    @Test
-    public void stringShrinkingWhileLoop_aboveBound() {
-        Options.get().enableLoopUnrolling(2);
-        Misc.init();
-        Misc.runSource(
-                "var s = 'abcdefg';",
-                "while(s){ s = s.substring(1); }",
-                "TAJS_assert(s, 'isMaybeSingleStr', false);",
-                "TAJS_assert(s, 'isMaybeAnyStr||isMaybeStrIdentifier');",
                 "");
     }
 }

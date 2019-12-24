@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,9 +47,9 @@ public class DOMTouchList {
     public static void build(Solver.SolverInterface c) {
         State s = c.getState();
         PropVarOperations pv = c.getAnalysis().getPropVarOperations();
-        CONSTRUCTOR = new ObjectLabel(DOMObjects.TOUCHLIST_CONSTRUCTOR, ObjectLabel.Kind.FUNCTION);
-        PROTOTYPE = new ObjectLabel(DOMObjects.TOUCHLIST_PROTOTYPE, ObjectLabel.Kind.OBJECT);
-        INSTANCES = new ObjectLabel(DOMObjects.TOUCHLIST_INSTANCES, ObjectLabel.Kind.OBJECT);
+        CONSTRUCTOR = ObjectLabel.make(DOMObjects.TOUCHLIST_CONSTRUCTOR, ObjectLabel.Kind.FUNCTION);
+        PROTOTYPE = ObjectLabel.make(DOMObjects.TOUCHLIST_PROTOTYPE, ObjectLabel.Kind.OBJECT);
+        INSTANCES = ObjectLabel.make(DOMObjects.TOUCHLIST_INSTANCES, ObjectLabel.Kind.OBJECT);
 
         // Constructor Object
         s.newObject(CONSTRUCTOR);
@@ -87,11 +87,11 @@ public class DOMTouchList {
         switch (nativeobject) {
             case TOUCHLIST_ITEM: {
                 return Value.makeObject(DOMTouch.INSTANCES);
-                //    throw new UnsupportedOperationException("NODELIST_ITEM not supported: "
+                //    throw new AnalysisLimitationException(call.getJSSourceNode(), "NODELIST_ITEM not supported: "
                 //           + nativeobject);
             }
             default: {
-                throw new AnalysisException("Unknown Native Object: " + nativeobject);
+                throw new AnalysisException(call.getJSSourceNode().getSourceLocation() + ": Unknown Native Object: " + nativeobject);
             }
         }
     }

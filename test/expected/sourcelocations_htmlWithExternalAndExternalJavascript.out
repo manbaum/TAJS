@@ -1,2 +1,0 @@
-javascript.js:1:5: [definite] The variable jsVar is never used
-javascript2.js:2:5: [definite] The variable jsVar2 is never used

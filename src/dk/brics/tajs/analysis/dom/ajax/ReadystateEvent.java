@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,8 +38,8 @@ public class ReadystateEvent {
 
     public static void build(Solver.SolverInterface c) {
         State s = c.getState();
-        PROTOTYPE = new ObjectLabel(DOMObjects.READY_STATE_EVENT_PROTOTYPE, ObjectLabel.Kind.OBJECT);
-        INSTANCES = new ObjectLabel(DOMObjects.READY_STATE_EVENT_INSTANCES, ObjectLabel.Kind.OBJECT);
+        PROTOTYPE = ObjectLabel.make(DOMObjects.READY_STATE_EVENT_PROTOTYPE, ObjectLabel.Kind.OBJECT);
+        INSTANCES = ObjectLabel.make(DOMObjects.READY_STATE_EVENT_INSTANCES, ObjectLabel.Kind.OBJECT);
 
         // Prototype object
         s.newObject(PROTOTYPE);
@@ -55,6 +55,7 @@ public class ReadystateEvent {
         createDOMProperty(INSTANCES, "cancelable", Value.makeBool(false).setReadOnly(), c);
         createDOMProperty(INSTANCES, "bubbles", Value.makeBool(false).setReadOnly(), c);
         createDOMProperty(INSTANCES, "target", Value.makeObject(XmlHttpRequest.INSTANCES).setReadOnly(), c); // TODO: bound to a specific XMLHttpRequest object...
+        createDOMProperty(INSTANCES, "type", Value.makeStr("readystatechange").setReadOnly(), c);
 
         /*
          *  ResponseText + ResponseXML (TODO)

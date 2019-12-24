@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -98,6 +98,6 @@ public class BeginForInNode extends Node {
         if (b.getSuccessors().size() > 1)
             throw new AnalysisException("More than one successor for begin-for-in node block: " + b);
         if (object_reg == NO_VALUE)
-            throw new AnalysisException("Invalid object register: " + toString());
+            throw new AnalysisException("Invalid object register: " + this);
     }
 }

@@ -1,3 +1,19 @@
+/*
+ * Copyright 2009-2019 Aarhus University
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package dk.brics.tajs.analysis.dom.html5;
 
 import dk.brics.tajs.analysis.Exceptions;
@@ -25,9 +41,9 @@ public class AudioNode {
         State s = c.getState();
         PropVarOperations pv = c.getAnalysis().getPropVarOperations();
 
-        CONSTRUCTOR = new ObjectLabel(DOMObjects.AUDIONODE_CONSTRUCTOR, ObjectLabel.Kind.FUNCTION);
-        PROTOTYPE = new ObjectLabel(DOMObjects.AUDIONODE_PROTOTYPE, ObjectLabel.Kind.OBJECT);
-        INSTANCES = new ObjectLabel(DOMObjects.AUDIONODE_INSTANCES, ObjectLabel.Kind.OBJECT);
+        CONSTRUCTOR = ObjectLabel.make(DOMObjects.AUDIONODE_CONSTRUCTOR, ObjectLabel.Kind.FUNCTION);
+        PROTOTYPE = ObjectLabel.make(DOMObjects.AUDIONODE_PROTOTYPE, ObjectLabel.Kind.OBJECT);
+        INSTANCES = ObjectLabel.make(DOMObjects.AUDIONODE_INSTANCES, ObjectLabel.Kind.OBJECT);
 
         // Constructor Object
         s.newObject(CONSTRUCTOR);
@@ -62,7 +78,7 @@ public class AudioNode {
         switch (nativeObject) {
             case AUDIONODE_CONSTRUCTOR:
                 Exceptions.throwTypeError(c);
-                s.setToNone();
+                s.setToBottom();
             case AUDIONODE_CONNECT:
             case AUDIONODE_DISCONNECT:
                 return Value.makeUndef();

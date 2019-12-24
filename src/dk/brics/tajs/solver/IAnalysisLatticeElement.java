@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package dk.brics.tajs.solver;
 
 import dk.brics.tajs.flowgraph.BasicBlock;
 
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -28,7 +29,7 @@ public interface IAnalysisLatticeElement<StateType extends IState<StateType, Con
         CallEdgeType extends ICallEdge<StateType>> {
 
     /**
-     * Result from {@link IAnalysisLatticeElement#propagate(IState, BasicBlock, IContext, boolean)}.
+     * Result from {@link IAnalysisLatticeElement#propagate(IState, BlockAndContext, boolean)}.
      */
     class MergeResult {
 
@@ -68,16 +69,31 @@ public interface IAnalysisLatticeElement<StateType extends IState<StateType, Con
     Map<ContextType, StateType> getStates(BasicBlock block);
 
     /**
+     * Returns the abstract states at the given block that have the given entry context.
+     */
+    Collection<StateType> getStatesWithEntryContext(BasicBlock block, ContextType entryContext);
+
+    /**
      * Returns the call graph.
      */
     CallGraph<StateType, ContextType, CallEdgeType> getCallGraph();
 
+//    /**
+//     * Returns the number of states stored for the given basic block.
+//     */
+//    int getSize(BasicBlock block); // (currently unused)
+
     /**
-     * Propagates s into the entry state of b in context c.
+     * Propagates s into the entry state at the given location.
      * The given state may be modified by the operation.
      *
      * @param localize if set, localize the state while joining
      * @return a merge result, or null if no new flow added.
      */
-    MergeResult propagate(StateType s, BasicBlock b, ContextType c, boolean localize);
+    MergeResult propagate(StateType s, BlockAndContext<ContextType> bc, boolean localize);
+
+    /**
+     * Returns the total number of (non-bottom) abstract states.
+     */
+    int getNumberOfStates();
 }

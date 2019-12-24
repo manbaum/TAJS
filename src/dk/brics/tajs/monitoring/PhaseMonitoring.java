@@ -1,26 +1,40 @@
+/*
+ * Copyright 2009-2019 Aarhus University
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package dk.brics.tajs.monitoring;
 
+import dk.brics.tajs.analysis.Solver;
 import dk.brics.tajs.flowgraph.AbstractNode;
 import dk.brics.tajs.flowgraph.BasicBlock;
-import dk.brics.tajs.flowgraph.FlowGraph;
 import dk.brics.tajs.flowgraph.Function;
 import dk.brics.tajs.flowgraph.SourceLocation;
 import dk.brics.tajs.flowgraph.jsnodes.IfNode;
 import dk.brics.tajs.flowgraph.jsnodes.Node;
 import dk.brics.tajs.flowgraph.jsnodes.ReadPropertyNode;
 import dk.brics.tajs.flowgraph.jsnodes.ReadVariableNode;
-import dk.brics.tajs.lattice.CallEdge;
 import dk.brics.tajs.lattice.Context;
 import dk.brics.tajs.lattice.HostObject;
 import dk.brics.tajs.lattice.ObjectLabel;
+import dk.brics.tajs.lattice.PKeys;
 import dk.brics.tajs.lattice.State;
-import dk.brics.tajs.lattice.Str;
 import dk.brics.tajs.lattice.Value;
-import dk.brics.tajs.solver.CallGraph;
+import dk.brics.tajs.solver.BlockAndContext;
 import dk.brics.tajs.solver.Message;
 
 import java.util.Collection;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -28,21 +42,29 @@ import java.util.Set;
  *
  * The monitors that are run before the scan phase should be side effect free wrt. the analysis state.
  *
- * Composing multiple monitors for each phase should be done with {@link CompositeMonitoring}
+ * Composing multiple monitors for each phase should be done with {@link CompositeMonitor}
  */
-public class PhaseMonitoring implements IAnalysisMonitoring {
+public class PhaseMonitoring<PreScanMonitorType extends IAnalysisMonitoring, ScanMonitorType extends IAnalysisMonitoring> implements IAnalysisMonitoring {
 
-    private final IAnalysisMonitoring preScanMonitor;
+    private final PreScanMonitorType preScanMonitor;
 
-    private final IAnalysisMonitoring scanMonitor;
+    private final ScanMonitorType scanMonitor;
 
     private IAnalysisMonitoring activeMonitor;
 
-    public PhaseMonitoring(IAnalysisMonitoring preScanMonitor, IAnalysisMonitoring scanMonitor) {
+    public PhaseMonitoring(PreScanMonitorType preScanMonitor, ScanMonitorType scanMonitor) {
         this.preScanMonitor = preScanMonitor;
         this.scanMonitor = scanMonitor;
 
         this.activeMonitor = preScanMonitor;
+    }
+
+    public PreScanMonitorType getPreScanMonitor() {
+        return preScanMonitor;
+    }
+
+    public ScanMonitorType getScanMonitor() {
+        return scanMonitor;
     }
 
     @Override
@@ -66,47 +88,32 @@ public class PhaseMonitoring implements IAnalysisMonitoring {
     }
 
     @Override
-    public void beginPhase(AnalysisPhase phase) {
+    public void visitPhasePre(AnalysisPhase phase) {
         if (phase == AnalysisPhase.SCAN) {
             activeMonitor = scanMonitor;
         }
-        activeMonitor.beginPhase(phase);
+        activeMonitor.visitPhasePre(phase);
     }
 
     @Override
-    public void endPhase(AnalysisPhase phase) {
-        activeMonitor.endPhase(phase);
+    public void visitPhasePost(AnalysisPhase phase) {
+        activeMonitor.visitPhasePost(phase);
     }
 
     @Override
-    public Set<Message> getMessages() {
-        return activeMonitor.getMessages();
+    public void setSolverInterface(Solver.SolverInterface c) {
+        preScanMonitor.setSolverInterface(c);
+        scanMonitor.setSolverInterface(c);
     }
 
     @Override
-    public Map<TypeCollector.VariableSummary, Value> getTypeInformation() {
-        return activeMonitor.getTypeInformation();
+    public void visitBlockTransferPre(BasicBlock b, State s) {
+        activeMonitor.visitBlockTransferPre(b, s);
     }
 
     @Override
-    public void setCallGraph(CallGraph<State, Context, CallEdge> callGraph) {
-        activeMonitor.setCallGraph(callGraph);
-    }
-
-    @Override
-    public void setFlowgraph(FlowGraph fg) {
-        preScanMonitor.setFlowgraph(fg);
-        scanMonitor.setFlowgraph(fg);
-    }
-
-    @Override
-    public void visitBlockTransfer(BasicBlock b, State s) {
-        activeMonitor.visitBlockTransfer(b, s);
-    }
-
-    @Override
-    public void visitCall(AbstractNode n, boolean maybe_non_function, boolean maybe_function) {
-        activeMonitor.visitCall(n, maybe_non_function, maybe_function);
+    public void visitCall(AbstractNode n, Value funval) {
+        activeMonitor.visitCall(n, funval);
     }
 
     @Override
@@ -140,8 +147,8 @@ public class PhaseMonitoring implements IAnalysisMonitoring {
     }
 
     @Override
-    public void visitJoin() {
-        activeMonitor.visitJoin();
+    public void visitJoin(long ms) {
+        activeMonitor.visitJoin(ms);
     }
 
     @Override
@@ -155,13 +162,18 @@ public class PhaseMonitoring implements IAnalysisMonitoring {
     }
 
     @Override
-    public void visitNodeTransfer(AbstractNode n) {
-        activeMonitor.visitNodeTransfer(n);
+    public void visitNodeTransferPre(AbstractNode n, State s) {
+        activeMonitor.visitNodeTransferPre(n, s);
     }
 
     @Override
-    public void visitPostBlockTransfer(BasicBlock b, State state) {
-        activeMonitor.visitPostBlockTransfer(b, state);
+    public void visitNodeTransferPost(AbstractNode n, State s) {
+        activeMonitor.visitNodeTransferPost(n, s);
+    }
+
+    @Override
+    public void visitBlockTransferPost(BasicBlock b, State state) {
+        activeMonitor.visitBlockTransferPost(b, state);
     }
 
     @Override
@@ -170,18 +182,13 @@ public class PhaseMonitoring implements IAnalysisMonitoring {
     }
 
     @Override
-    public void visitPropertyRead(AbstractNode n, Set<ObjectLabel> objs, Str propertystr, State state, boolean check_unknown) {
-        activeMonitor.visitPropertyRead(n, objs, propertystr, state, check_unknown);
+    public void visitPropertyRead(AbstractNode n, Set<ObjectLabel> objs, PKeys propertyname, State state, boolean check_unknown) {
+        activeMonitor.visitPropertyRead(n, objs, propertyname, state, check_unknown);
     }
 
     @Override
-    public void visitPropertyWrite(Node n, Set<ObjectLabel> objs, Str propertystr) {
-        activeMonitor.visitPropertyWrite(n, objs, propertystr);
-    }
-
-    @Override
-    public void visitReachableNode(AbstractNode n) {
-        activeMonitor.visitReachableNode(n);
+    public void visitPropertyWrite(Node n, Set<ObjectLabel> objs, PKeys propertyname) {
+        activeMonitor.visitPropertyWrite(n, objs, propertyname);
     }
 
     @Override
@@ -195,8 +202,8 @@ public class PhaseMonitoring implements IAnalysisMonitoring {
     }
 
     @Override
-    public void visitReadProperty(ReadPropertyNode n, Set<ObjectLabel> objlabels, Str propertystr, boolean maybe, State state, Value v) {
-        activeMonitor.visitReadProperty(n, objlabels, propertystr, maybe, state, v);
+    public void visitReadProperty(ReadPropertyNode n, Set<ObjectLabel> objlabels, PKeys propertyname, boolean maybe, State state, Value v, ObjectLabel global_obj) {
+        activeMonitor.visitReadProperty(n, objlabels, propertyname, maybe, state, v, global_obj);
     }
 
     @Override
@@ -210,13 +217,13 @@ public class PhaseMonitoring implements IAnalysisMonitoring {
     }
 
     @Override
-    public void visitRecoveryGraph(int size) {
-        activeMonitor.visitRecoveryGraph(size);
+    public void visitRecoveryGraph(AbstractNode node, int size) {
+        activeMonitor.visitRecoveryGraph(node, size);
     }
 
     @Override
-    public void visitUnknownValueResolve(boolean partial, boolean scanning) {
-        activeMonitor.visitUnknownValueResolve(partial, scanning);
+    public void visitUnknownValueResolve(AbstractNode node, boolean partial, boolean scanning) {
+        activeMonitor.visitUnknownValueResolve(node, partial, scanning);
     }
 
     @Override
@@ -225,13 +232,52 @@ public class PhaseMonitoring implements IAnalysisMonitoring {
     }
 
     @Override
-    public void visitVariableAsRead(ReadVariableNode n, Value v, State state) {
-        activeMonitor.visitVariableAsRead(n, v, state);
+    public void visitVariableAsRead(AbstractNode n, String varname, Value v, State state) {
+        activeMonitor.visitVariableAsRead(n, varname, v, state);
     }
 
     @Override
-    public void visitVariableOrProperty(String var, SourceLocation loc, Value value, Context context, State state) {
-        activeMonitor.visitVariableOrProperty(var, loc, value, context, state);
+    public void visitVariableOrProperty(AbstractNode node, String var, SourceLocation loc, Value value, Context context, State state) {
+        activeMonitor.visitVariableOrProperty(node, var, loc, value, context, state);
     }
 
+    @Override
+    public void visitNativeFunctionReturn(AbstractNode node, HostObject hostObject, Value result) {
+        activeMonitor.visitNativeFunctionReturn(node, hostObject, result);
+    }
+
+    @Override
+    public void visitEventHandlerRegistration(AbstractNode node, Context context, Value handler) {
+        activeMonitor.visitEventHandlerRegistration(node, context, handler);
+    }
+
+    @Override
+    public void visitPropagationPre(BlockAndContext<Context> from, BlockAndContext<Context> to) {
+        activeMonitor.visitPropagationPre(from, to);
+    }
+
+    @Override
+    public void visitPropagationPost(BlockAndContext<Context> from, BlockAndContext<Context> to, boolean changed) {
+        activeMonitor.visitPropagationPost(from, to, changed);
+    }
+
+    @Override
+    public void visitNewObject(AbstractNode node, ObjectLabel label, State s) {
+        activeMonitor.visitNewObject(node, label, s);
+    }
+
+    @Override
+    public void visitRenameObject(AbstractNode node, ObjectLabel from, ObjectLabel to, State s) {
+        activeMonitor.visitRenameObject(node, from, to, s);
+    }
+
+    @Override
+    public void visitIterationDone(String terminatedEarlyMsg) {
+        activeMonitor.visitIterationDone(terminatedEarlyMsg);
+    }
+
+    @Override
+    public void visitSoundnessTestingDone(int numSoundnessChecks) {
+        activeMonitor.visitSoundnessTestingDone(numSoundnessChecks);
+    }
 }

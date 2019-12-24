@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -106,6 +106,6 @@ public class CatchNode extends Node {
     @Override
     public void check(BasicBlock b) {
         if (varname == null && value_reg == NO_VALUE)
-            throw new AnalysisException("Both varname and value register are undefined: " + toString());
+            throw new AnalysisException("Both varname and value register are undefined: " + this);
     }
 }

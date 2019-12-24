@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -131,6 +131,6 @@ public class DeletePropertyNode extends LoadNode {
     @Override
     public void check(BasicBlock b) {
         if (property_reg == NO_VALUE && property_str == null && (varname == null || varname.isEmpty()))
-            throw new AnalysisException("Property register, property string and variable name are all undefined: " + toString());
+            throw new AnalysisException("Property register, property string and variable name are all undefined: " + this);
     }
 }

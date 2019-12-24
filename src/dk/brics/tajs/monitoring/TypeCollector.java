@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import org.apache.log4j.Logger;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 
 /**
  * Collects abstract values for variable occurrences during the scanning phase of the analysis.
@@ -69,11 +70,11 @@ public class TypeCollector {
 
             VariableSummary that = (VariableSummary) o;
 
-            if (variable_name != null ? !variable_name.equals(that.variable_name) : that.variable_name != null)
+            if (!Objects.equals(variable_name, that.variable_name))
                 return false;
-            if (source_location != null ? !source_location.equals(that.source_location) : that.source_location != null)
+            if (!Objects.equals(source_location, that.source_location))
                 return false;
-            return !(context != null ? !context.equals(that.context) : that.context != null);
+            return !(!Objects.equals(context, that.context));
         }
 
         @Override
@@ -85,7 +86,7 @@ public class TypeCollector {
         }
     }
 
-    private Map<VariableSummary, Value> type_info_map = new LinkedHashMap<>();
+    private final Map<VariableSummary, Value> type_info_map = new LinkedHashMap<>();
 
     /**
      * Records a variable name along with its source location and abstract value.

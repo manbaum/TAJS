@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,20 +21,22 @@ import dk.brics.tajs.analysis.js.UserFunctionCalls;
 import dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects;
 import dk.brics.tajs.flowgraph.AbstractNode;
 import dk.brics.tajs.flowgraph.jsnodes.CallNode;
-import dk.brics.tajs.flowgraph.jsnodes.Node;
 import dk.brics.tajs.lattice.ExecutionContext;
+import dk.brics.tajs.lattice.FunctionPartitions;
+import dk.brics.tajs.lattice.FunctionTypeSignatures;
 import dk.brics.tajs.lattice.ObjectLabel;
 import dk.brics.tajs.lattice.ObjectLabel.Kind;
 import dk.brics.tajs.lattice.State;
 import dk.brics.tajs.lattice.UnknownValueResolver;
 import dk.brics.tajs.lattice.Value;
 import dk.brics.tajs.options.Options;
+import dk.brics.tajs.typescript.TypeFiltering;
 import dk.brics.tajs.util.AnalysisException;
 
+import java.util.List;
 import java.util.Set;
 
 import static dk.brics.tajs.util.Collections.newSet;
-import static dk.brics.tajs.util.Collections.singleton;
 
 /**
  * Models function calls.
@@ -72,15 +74,14 @@ public class FunctionCalls {
         Value getFunctionValue();
 
         /**
-         * Creates the object value of 'this'.
-         * Note that this may have side-effects on the callee_state.
+         * Returns the value of 'this'.
          */
-        Set<ObjectLabel> prepareThis(State caller_state, State callee_state);
+        Value getThis();
 
         /**
          * Returns the value of the i'th argument.
          * The first argument is number 0.
-         * Returns Undef if the argument is not provided.
+         * Returns 'absent' if the argument is not provided.
          * Can be used even if the number of arguments is unknown.
          *
          * @see #getUnknownArg()
@@ -97,6 +98,7 @@ public class FunctionCalls {
         /**
          * Returns the value of an unknown argument.
          * Only to be called if the number of arguments is unknown.
+         * Always includes 'undefined' (not 'absent').
          */
         Value getUnknownArg(); // TODO: would simplify things if this could also be used with fixed number of args
 
@@ -114,6 +116,21 @@ public class FunctionCalls {
          * Returns the execution context.
          */
         ExecutionContext getExecutionContext();
+
+        /**
+         * Assumes that a function is called.
+         */
+        boolean assumeFunction();
+
+        /**
+         * Information about value partitioning of free variables in the function being called, or null if not applicable.
+         */
+        FunctionPartitions getFunctionPartitions(ObjectLabel function);
+
+        /**
+         * Returns the function type signatures, or null if not applicable.
+         */
+        FunctionTypeSignatures getFunctionTypeSignatures();
     }
 
     /**
@@ -123,11 +140,39 @@ public class FunctionCalls {
 
         private CallNode n;
 
-        private State state;
+        private State state; // the state at the call site
 
-        public OrdinaryCallInfo(CallNode n, State state) {
+        private Solver.SolverInterface c;
+
+        private FunctionPartitions functionPartitions;
+
+        private FunctionTypeSignatures functionTypeSignatures;
+
+        public OrdinaryCallInfo(CallNode n, Solver.SolverInterface c) {
+            this(n, c, null, null);
+        }
+
+        public OrdinaryCallInfo(CallNode n, Solver.SolverInterface c,
+                                FunctionPartitions functionPartitions,
+                                FunctionTypeSignatures functionTypeSignatures) {
             this.n = n;
-            this.state = state;
+            this.state = c.getState();
+            this.c = c;
+            this.functionPartitions = functionPartitions;
+            this.functionTypeSignatures = functionTypeSignatures;
+        }
+
+        @Override
+        public FunctionPartitions getFunctionPartitions(ObjectLabel function) {
+            if (functionPartitions == null) {
+                return null;
+            }
+            return functionPartitions.filterByFunction(function);
+        }
+
+        @Override
+        public FunctionTypeSignatures getFunctionTypeSignatures() {
+            return functionTypeSignatures;
         }
 
         @Override
@@ -151,16 +196,26 @@ public class FunctionCalls {
         }
 
         @Override
-        public Set<ObjectLabel> prepareThis(State caller_state, State callee_state) {
+        public Value getThis() {
             throw new AnalysisException();
         }
 
         @Override
         public Value getArg(int i) {
             if (i < n.getNumberOfArgs()) {
-                return state.readRegister(n.getArgRegister(i));
+                int argRegister = n.getArgRegister(i);
+                if (argRegister == AbstractNode.NO_VALUE) {
+                    return Value.makeAbsent(); // happens for array literal with empty entries: `[foo, , , 42]`
+                }
+                Value res = state.readRegister(argRegister);
+                Value funval = getFunctionValue();
+                if (funval.getFunctionTypeSignatures() != null)
+                    res = new TypeFiltering(c).assumeParameterType(res, funval.getFunctionTypeSignatures(), i);
+                if (Options.get().isBlendedAnalysisEnabled())
+                    res = c.getAnalysis().getBlendedAnalysis().getArg(res, i, getFunctionValue(), getThis(), n, state);
+                return res;
             } else
-                return Value.makeUndef();
+                return Value.makeAbsent();
         }
 
         @Override
@@ -187,6 +242,11 @@ public class FunctionCalls {
         public ExecutionContext getExecutionContext() {
             return state.getExecutionContext();
         }
+
+        @Override
+        public boolean assumeFunction() {
+            return false;
+        }
     }
 
     /**
@@ -194,11 +254,11 @@ public class FunctionCalls {
      */
     public static class EventHandlerCall implements CallInfo {
 
-        private Node sourceNode;
+        private AbstractNode sourceNode;
 
         private Value function;
 
-        private Value arg1;
+        private List<Value> args;
 
         private State state;
         /**
@@ -206,12 +266,12 @@ public class FunctionCalls {
          */
         private final Set<ObjectLabel> thisTargets;
 
-        public EventHandlerCall(Node sourceNode, Value function, Value arg1, Set<ObjectLabel> thisTargets, State state) {
+        public EventHandlerCall(AbstractNode sourceNode, Value function, List<Value> args, Set<ObjectLabel> thisTargets, State state) {
             this.sourceNode = sourceNode;
             this.function = function;
-            this.arg1 = arg1;
-            this.state = state;
+            this.args = args;
             this.thisTargets = thisTargets;
+            this.state = state;
         }
 
         @Override
@@ -220,7 +280,7 @@ public class FunctionCalls {
         }
 
         @Override
-        public Node getJSSourceNode() {
+        public AbstractNode getJSSourceNode() {
             return sourceNode;
         }
 
@@ -235,24 +295,21 @@ public class FunctionCalls {
         }
 
         @Override
-        public Set<ObjectLabel> prepareThis(State caller_state, State callee_state) {
-            return thisTargets;
+        public Value getThis() {
+            return Value.makeObject(thisTargets);
         }
 
         @Override
         public Value getArg(int i) {
-            if (arg1 != null && i == 0) {
-                return arg1;
+            if (args.size() > i) {
+                return args.get(i);
             }
-            return Value.makeUndef();
+            return Value.makeAbsent();
         }
 
         @Override
         public int getNumberOfArgs() {
-            if (arg1 != null) {
-                return 1;
-            }
-            return 0;
+            return args.size();
         }
 
         @Override
@@ -273,6 +330,21 @@ public class FunctionCalls {
         @Override
         public ExecutionContext getExecutionContext() {
             return state.getExecutionContext();
+        }
+
+        @Override
+        public boolean assumeFunction() {
+            return false;
+        }
+
+        @Override
+        public FunctionPartitions getFunctionPartitions(ObjectLabel function) {
+            return null;
+        }
+
+        @Override
+        public FunctionTypeSignatures getFunctionTypeSignatures() {
+            return null;
         }
     }
 
@@ -309,8 +381,8 @@ public class FunctionCalls {
         }
 
         @Override
-        public Set<ObjectLabel> prepareThis(State caller_state, State callee_state) {
-            return singleton(InitialStateBuilder.GLOBAL);
+        public Value getThis() {
+            return Value.makeObject(InitialStateBuilder.GLOBAL);
         }
 
         @Override
@@ -322,6 +394,21 @@ public class FunctionCalls {
         public ExecutionContext getExecutionContext() {
             return c.getState().getExecutionContext();
         }
+
+        @Override
+        public boolean assumeFunction() {
+            return false;
+        }
+
+        @Override
+        public FunctionPartitions getFunctionPartitions(ObjectLabel function) {
+            return null;
+        }
+
+        @Override
+        public FunctionTypeSignatures getFunctionTypeSignatures() {
+            return null;
+        }
     }
 
     /**
@@ -331,34 +418,33 @@ public class FunctionCalls {
         State caller_state = c.getState();
         Value funval = call.getFunctionValue();
         funval = UnknownValueResolver.getRealValue(funval, caller_state);
-        boolean maybe_non_function = funval.isMaybePrimitive();
-        boolean maybe_function = false;
+        boolean maybe_non_function = funval.isMaybePrimitiveOrSymbol();
         for (ObjectLabel objlabel : funval.getObjectLabels()) {
             if (objlabel.getKind() == Kind.FUNCTION) {
-                maybe_function = true;
                 if (objlabel.isHostObject()) { // host function
-                    State newstate = caller_state.clone();
-                    State ts = c.getState();
-                    c.setState(newstate); // note that the calling context is not affected, even though e.g. 'this' may get a different value
-                    if (!call.isConstructorCall() &&
-                            !objlabel.getHostObject().equals(ECMAScriptObjects.EVAL) &&
-                            !objlabel.getHostObject().equals(ECMAScriptObjects.FUNCTION) &&
-                            !objlabel.getHostObject().equals(DOMObjects.WINDOW_SET_INTERVAL) &&
-                            !objlabel.getHostObject().equals(DOMObjects.WINDOW_SET_TIMEOUT)) {
-                        ExecutionContext old_ec = newstate.getExecutionContext();
-                        newstate.setExecutionContext(new ExecutionContext(old_ec.getScopeChain(), newSet(old_ec.getVariableObject()), newSet(call.prepareThis(caller_state, newstate))));
-                    }
-                    Value res = HostAPIs.evaluate(objlabel.getHostObject(), call, c);
-                    newstate = c.getState();
-                    if (call.getSourceNode().isRegistersDone())
-                        newstate.clearOrdinaryRegisters();
-                    if ((!res.isNone() && !newstate.isNone()) || Options.get().isPropagateDeadFlow()) {
-                        newstate.setExecutionContext(call.getExecutionContext());
-                        if (call.getResultRegister() != AbstractNode.NO_VALUE)
-                            newstate.writeRegister(call.getResultRegister(), res);
-                        c.propagateToBasicBlock(newstate, call.getSourceNode().getBlock().getSingleSuccessor(), newstate.getContext());
-                    }
-                    c.setState(ts);
+                    c.withState(caller_state.clone(), () -> { // note that the calling context is not affected, even though e.g. 'this' may get a different value
+                                if (!call.isConstructorCall() &&
+                                        !objlabel.getHostObject().equals(ECMAScriptObjects.EVAL) &&
+                                        !objlabel.getHostObject().equals(ECMAScriptObjects.FUNCTION) &&
+                                        !objlabel.getHostObject().equals(DOMObjects.WINDOW_SET_INTERVAL) &&
+                                        !objlabel.getHostObject().equals(DOMObjects.WINDOW_SET_TIMEOUT)) {
+                                    ExecutionContext old_ec = c.getState().getExecutionContext();
+                                    c.getState().setExecutionContext(new ExecutionContext(old_ec.getScopeChain(), newSet(old_ec.getVariableObject()), call.getThis()));
+                                }
+                                Value res = HostAPIs.evaluate(objlabel.getHostObject(), call, c);
+                                if (res == null) {
+                                    throw new AnalysisException("null result from " + objlabel.getHostObject());
+                                }
+                                c.getMonitoring().visitNativeFunctionReturn(call.getSourceNode(), objlabel.getHostObject(), res);
+                                if ((!res.isNone() && !c.getState().isBottom()) || Options.get().isPropagateDeadFlow()) {
+                                    c.getState().setExecutionContext(call.getExecutionContext());
+                                    if (call.getResultRegister() != AbstractNode.NO_VALUE) {
+                                        c.getState().writeRegister(call.getResultRegister(), res);
+                                        c.getState().getMustReachingDefs().addReachingDef(call.getResultRegister(), call.getSourceNode());
+                                    }
+                                    c.propagateToBasicBlock(c.getState(), call.getSourceNode().getBlock().getSingleSuccessor(), c.getState().getContext());
+                                }
+                            });
                 } else { // user-defined function
                     UserFunctionCalls.enterUserFunction(objlabel, call, false, c);
                     c.getMonitoring().visitUserFunctionCall(objlabel.getFunction(), call.getSourceNode(), call.isConstructorCall());
@@ -368,12 +454,36 @@ public class FunctionCalls {
         }
         if (funval.getObjectLabels().isEmpty() && Options.get().isPropagateDeadFlow()) {
             State newstate = caller_state.clone();
-            if (call.getResultRegister() != AbstractNode.NO_VALUE)
+            if (call.getResultRegister() != AbstractNode.NO_VALUE) {
                 newstate.writeRegister(call.getResultRegister(), Value.makeNone());
+                newstate.getMustReachingDefs().addReachingDef(call.getResultRegister(), call.getSourceNode());
+            }
             c.propagateToBasicBlock(newstate, call.getSourceNode().getBlock().getSingleSuccessor(), newstate.getContext());
         }
-        c.getMonitoring().visitCall(c.getNode(), maybe_non_function, maybe_function);
+        c.getMonitoring().visitCall(c.getNode(), funval);
         if (maybe_non_function)
             Exceptions.throwTypeError(c);
+    }
+
+    /**
+     * Reads the value of a call parameter. Returns 'undefined' if too few parameters. The first parameter has number 0.
+     */
+    public static Value readParameter(CallInfo call, State state, int param) {
+        boolean num_actuals_unknown = call.isUnknownNumberOfArgs();
+        if (num_actuals_unknown || param < call.getNumberOfArgs()) {
+            Value v = UnknownValueResolver.getRealValue(call.getArg(param), state);
+            if (v.isMaybeAbsent()) { // convert absent to undefined
+                v = v.restrictToNotAbsent().joinUndef();
+            }
+            return v;
+        } else
+            return Value.makeUndef();
+    }
+
+    /**
+     * Reads the value of a call parameter. Only to be called if the number of arguments is unknown.
+     */
+    public static Value readUnknownParameter(CallInfo call) {
+        return call.getUnknownArg();
     }
 }

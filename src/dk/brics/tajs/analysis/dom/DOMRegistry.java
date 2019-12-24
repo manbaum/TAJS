@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import dk.brics.tajs.util.AnalysisException;
 public class DOMRegistry {
 
     public enum MaySets {
+        DOM_CONTENT_LOADED_EVENT_HANDLER,
         LOAD_EVENT_HANDLER,
         UNLOAD_EVENT_HANDLERS,
 
@@ -38,11 +39,15 @@ public class DOMRegistry {
         ELEMENTS_BY_TAGNAME
     }
 
+    private static ObjectLabel hashChangeEvent;
+
     private static ObjectLabel keyboardEvent;
 
     private static ObjectLabel mouseEvent;
 
     private static ObjectLabel ajaxEvent;
+
+    private static ObjectLabel domContentLoadedEvent;
 
     private static ObjectLabel loadEvent;
 
@@ -53,13 +58,19 @@ public class DOMRegistry {
     private static ObjectLabel touchEvent;
 
     public static void reset() {
+        hashChangeEvent = null;
         keyboardEvent = null;
         mouseEvent = null;
         ajaxEvent = null;
+        domContentLoadedEvent = null;
         loadEvent = null;
         mutationEvent = null;
         wheelEvent = null;
         touchEvent = null;
+    }
+
+    public static void registerHashChangeEventLabel(ObjectLabel l) {
+        hashChangeEvent = l;
     }
 
     public static void registerKeyboardEventLabel(ObjectLabel l) {
@@ -72,6 +83,10 @@ public class DOMRegistry {
 
     public static void registerAjaxEventLabel(ObjectLabel l) {
         ajaxEvent = l;
+    }
+
+    public static void registerDOMContentLoadedEventLabel(ObjectLabel l) {
+        domContentLoadedEvent = l;
     }
 
     public static void registerLoadEventLabel(ObjectLabel l) {
@@ -89,6 +104,13 @@ public class DOMRegistry {
     public static void registerTouchEventLabel(ObjectLabel l) {
 		touchEvent = l;
 	}
+
+    public static ObjectLabel getHashChangeEventLabel() {
+        if (hashChangeEvent == null) {
+            throw new AnalysisException("No hash change event object labels registered");
+        }
+        return hashChangeEvent;
+    }
 
     public static ObjectLabel getKeyboardEventLabel() {
         if (keyboardEvent == null) {
@@ -109,6 +131,13 @@ public class DOMRegistry {
             throw new AnalysisException("No ajax event object labels registered");
         }
         return ajaxEvent;
+    }
+
+    public static ObjectLabel getDOMContentLoadedEventLabel() {
+        if (domContentLoadedEvent == null) {
+            throw new AnalysisException("No ajax event object labels registered");
+        }
+        return domContentLoadedEvent;
     }
 
     public static ObjectLabel getLoadEventLabel() {

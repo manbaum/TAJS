@@ -4,16 +4,16 @@ import dk.brics.tajs.Main;
 import dk.brics.tajs.flowgraph.BasicBlock;
 import dk.brics.tajs.lattice.State;
 import dk.brics.tajs.lattice.Value;
-import dk.brics.tajs.monitoring.CompositeMonitoring;
+import dk.brics.tajs.monitoring.AnalysisMonitor;
+import dk.brics.tajs.monitoring.CompositeMonitor;
 import dk.brics.tajs.monitoring.DefaultAnalysisMonitoring;
 import dk.brics.tajs.monitoring.IAnalysisMonitoring;
-import dk.brics.tajs.monitoring.Monitoring;
 import dk.brics.tajs.options.Options;
-import dk.brics.tajs.test.monitors.OrdinaryExitReachableCheckerMonitor;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static dk.brics.tajs.util.Collections.newSet;
 import static org.junit.Assert.assertEquals;
@@ -22,7 +22,6 @@ public class TestClosureContextSensitivity {
 
     @Before
     public void before() {
-        Main.initLogging();
         Main.reset();
         Options.get().enableTest();
         Options.get().enableDeterminacy();
@@ -40,7 +39,6 @@ public class TestClosureContextSensitivity {
 
     @Test
     public void ensureLoopunrollingWorks() {
-        Misc.init();
         Options.get().enableFlowgraph();
         Misc.runSource(
                 "var i = 0;",
@@ -156,20 +154,24 @@ public class TestClosureContextSensitivity {
         for (String string : stringValues) {
             values.add(Value.makeStr(string));
         }
-
         return values;
     }
 
     private void test(String expectedValue, String... sourceLines) {
-        Value expected = Value.makeStr(expectedValue);
+        Supplier<Value> expected = () -> Value.makeStr(expectedValue);
         test(expected, sourceLines);
     }
 
-    private void test(Value expected, String... sourceLines) {
+    private void test(Supplier<Value> expected, String... sourceLines) {
         TestMonitor testMonitor = new TestMonitor();
-        IAnalysisMonitoring monitor = CompositeMonitoring.buildFromList(testMonitor, new Monitoring(), new OrdinaryExitReachableCheckerMonitor());
+        IAnalysisMonitoring monitor = CompositeMonitor.make(new AnalysisMonitor(), testMonitor);
         Misc.runSource(sourceLines, monitor);
-        assertEquals(expected.toString(), testMonitor.state.readVariableDirect("RESULT").toString());
+        try {
+            assertEquals(expected.get().toString(), testMonitor.state.readVariableDirect("RESULT").toString());
+        } catch (Throwable e) {
+            e.printStackTrace(System.out);
+            throw e;
+        }
     }
 
     private class TestMonitor extends DefaultAnalysisMonitoring {
@@ -177,7 +179,7 @@ public class TestClosureContextSensitivity {
         private State state;
 
         @Override
-        public void visitPostBlockTransfer(BasicBlock b, State state) {
+        public void visitBlockTransferPost(BasicBlock b, State state) {
             if (b.getFunction().isMain() && b.getFunction().getOrdinaryExit() == b) {
                 this.state = state;
             }

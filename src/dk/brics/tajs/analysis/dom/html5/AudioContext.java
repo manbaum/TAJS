@@ -1,3 +1,19 @@
+/*
+ * Copyright 2009-2019 Aarhus University
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package dk.brics.tajs.analysis.dom.html5;
 
 import dk.brics.tajs.analysis.FunctionCalls;
@@ -33,9 +49,9 @@ public class AudioContext {
         // Scraped from google chrome (remove once they are supported):
         Set<String> scrapedFunctionPropertyNames = newSet(Arrays.asList("createBuffer", "decodeAudioData", "createBufferSource", "createMediaElementSource", "createMediaStreamSource", "createMediaStreamDestination", "createGain", "createDelay", "createBiquadFilter", "createWaveShaper", "createPanner", "createConvolver", "createDynamicsCompressor", "createPeriodicWave", "createChannelSplitter", "createChannelMerger", "startRendering"));
 
-        CONSTRUCTOR = new ObjectLabel(DOMObjects.AUDIOCONTEXT_CONSTRUCTOR, ObjectLabel.Kind.FUNCTION);
-        PROTOTYPE = new ObjectLabel(DOMObjects.AUDIOCONTEXT_PROTOTYPE, ObjectLabel.Kind.OBJECT);
-        INSTANCES = new ObjectLabel(DOMObjects.AUDIOCONTEXT_INSTANCES, ObjectLabel.Kind.OBJECT);
+        CONSTRUCTOR = ObjectLabel.make(DOMObjects.AUDIOCONTEXT_CONSTRUCTOR, ObjectLabel.Kind.FUNCTION);
+        PROTOTYPE = ObjectLabel.make(DOMObjects.AUDIOCONTEXT_PROTOTYPE, ObjectLabel.Kind.OBJECT);
+        INSTANCES = ObjectLabel.make(DOMObjects.AUDIOCONTEXT_INSTANCES, ObjectLabel.Kind.OBJECT);
 
         // Constructor Object
         s.newObject(CONSTRUCTOR);
@@ -69,7 +85,7 @@ public class AudioContext {
         createDOMFunction(PROTOTYPE, DOMObjects.AUDIOCONTEXT_CREATE_ANALYSER, "createAnalyser", 0, c);
         createDOMFunction(PROTOTYPE, DOMObjects.AUDIOCONTEXT_CREATE_OSCILLATOR, "createOscillator", 0, c);
         createDOMFunction(PROTOTYPE, DOMObjects.AUDIOCONTEXT_CREATE_SCRIPT_PROCESSOR, "createScriptProcessor", 3, c);
-        ObjectLabel dummyFunction = new ObjectLabel(DOMObjects.AUDIOCONTEXT_TAJS_UNSUPPORTED_FUNCTION, ObjectLabel.Kind.FUNCTION);
+        ObjectLabel dummyFunction = ObjectLabel.make(DOMObjects.AUDIOCONTEXT_TAJS_UNSUPPORTED_FUNCTION, ObjectLabel.Kind.FUNCTION);
         for (String propertyName : scrapedFunctionPropertyNames) {
             s.newObject(dummyFunction);
             pv.writePropertyWithAttributes(PROTOTYPE, propertyName, Value.makeObject(dummyFunction).setAttributes(true, false, false));

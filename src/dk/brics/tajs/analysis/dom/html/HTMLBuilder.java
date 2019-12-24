@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ import static dk.brics.tajs.analysis.dom.DOMFunctions.createDOMProperty;
 
 public class HTMLBuilder {
 
-    public static final Set<ObjectLabel> HTML4_OBJECT_LABELS = Collections.newSet();
+    public static Set<ObjectLabel> HTML4_OBJECT_LABELS;
 
     /**
      * Build HTML objects
@@ -83,6 +83,7 @@ public class HTMLBuilder {
         HTMLQuoteElement.build(c);
         HTMLScriptElement.build(c);
         HTMLSelectElement.build(c);
+        HTMLSpanElement.build(c);
         HTMLStyleElement.build(c);
         HTMLTableCaptionElement.build(c);
         HTMLTableCellElement.build(c);
@@ -90,10 +91,13 @@ public class HTMLBuilder {
         HTMLTableRowElement.build(c);
         HTMLTableSectionElement.build(c);
         HTMLTableElement.build(c);
+        HTMLTemplateElement.build(c);
         HTMLTextAreaElement.build(c);
         HTMLTitleElement.build(c);
         HTMLUListElement.build(c);
+        HTMLUnknownElement.build(c);
 
+        HTML4_OBJECT_LABELS = Collections.newSet();
         HTML4_OBJECT_LABELS.add(HTMLAnchorElement.INSTANCES);
         HTML4_OBJECT_LABELS.add(HTMLAppletElement.INSTANCES);
         HTML4_OBJECT_LABELS.add(HTMLAreaElement.INSTANCES);
@@ -138,6 +142,7 @@ public class HTMLBuilder {
         HTML4_OBJECT_LABELS.add(HTMLQuoteElement.INSTANCES);
         HTML4_OBJECT_LABELS.add(HTMLScriptElement.INSTANCES);
         HTML4_OBJECT_LABELS.add(HTMLSelectElement.INSTANCES);
+        HTML4_OBJECT_LABELS.add(HTMLSpanElement.INSTANCES);
         HTML4_OBJECT_LABELS.add(HTMLStyleElement.INSTANCES);
         HTML4_OBJECT_LABELS.add(HTMLTableCaptionElement.INSTANCES);
         HTML4_OBJECT_LABELS.add(HTMLTableCellElement.INSTANCES);
@@ -145,13 +150,13 @@ public class HTMLBuilder {
         HTML4_OBJECT_LABELS.add(HTMLTableElement.INSTANCES);
         HTML4_OBJECT_LABELS.add(HTMLTableRowElement.INSTANCES);
         HTML4_OBJECT_LABELS.add(HTMLTableSectionElement.INSTANCES);
+        HTML4_OBJECT_LABELS.add(HTMLTemplateElement.INSTANCES);
         HTML4_OBJECT_LABELS.add(HTMLTextAreaElement.INSTANCES);
         HTML4_OBJECT_LABELS.add(HTMLTitleElement.INSTANCES);
         HTML4_OBJECT_LABELS.add(HTMLUListElement.INSTANCES);
+        HTML4_OBJECT_LABELS.add(HTMLUnknownElement.INSTANCES);
 
-        // Write documentElement (due to cyclic dependency) and summarize DOMDocument.
+        // Write documentElement (due to cyclic dependency)
         createDOMProperty(DOMDocument.INSTANCES, "documentElement", Value.makeObject(HTMLHtmlElement.INSTANCES).setReadOnly(), c);
-        s.multiplyObject(DOMDocument.INSTANCES);
-        DOMDocument.INSTANCES = DOMDocument.INSTANCES.makeSingleton().makeSummary();
     }
 }

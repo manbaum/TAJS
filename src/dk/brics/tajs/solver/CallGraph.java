@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package dk.brics.tajs.solver;
 import dk.brics.tajs.flowgraph.AbstractNode;
 import dk.brics.tajs.flowgraph.BasicBlock;
 import dk.brics.tajs.flowgraph.Function;
+import dk.brics.tajs.flowgraph.SourceLocation;
 import dk.brics.tajs.flowgraph.jsnodes.CallNode;
 import dk.brics.tajs.util.AnalysisException;
 import dk.brics.tajs.util.Strings;
@@ -27,6 +28,7 @@ import org.apache.log4j.Logger;
 import java.io.PrintWriter;
 import java.util.AbstractMap;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -56,12 +58,25 @@ public class CallGraph<StateType extends IState<StateType, ContextType, CallEdge
      */
     private Map<NodeAndContext<ContextType>, Map<BlockAndContext<ContextType>, CallEdgeType>> call_edge_info; // default is empty maps
 
+    private Map<AbstractNode,Set<Function>> callees_ignoring_contexts;
+
     /**
      * Map from basic block and context to occurrence order.
      */
-    private Map<BlockAndContext<ContextType>, Integer> block_context_order;
+    private Map<BlockAndContext<ContextType>, Integer> funentry_order;
 
-    private int next_block_context_order;
+    /**
+     * Map from context to occurrence order.
+     */
+    private Map<ContextType, Integer> context_order;
+
+    private int next_funentry_order;
+
+    private int next_context_order;
+
+    private int size;
+
+    private int size_ignoring_contexts;
 
     public static class ReverseEdge<ContextType extends IContext<?>> {
 
@@ -71,13 +86,10 @@ public class CallGraph<StateType extends IState<StateType, ContextType, CallEdge
 
         ContextType edge_context;
 
-        boolean implicit;
-
-        public ReverseEdge(AbstractNode call_node, ContextType caller_context, ContextType edge_context, boolean implicit) {
+        public ReverseEdge(AbstractNode call_node, ContextType caller_context, ContextType edge_context) {
             this.call_node = call_node;
             this.caller_context = caller_context;
             this.edge_context = edge_context;
-            this.implicit = implicit;
         }
 
         public AbstractNode getCallNode() {
@@ -91,10 +103,6 @@ public class CallGraph<StateType extends IState<StateType, ContextType, CallEdge
         public ContextType getEdgeContext() {
             return edge_context;
         }
-
-        public boolean isImplicit() {
-            return implicit;
-        }
     }
 
     /**
@@ -103,7 +111,9 @@ public class CallGraph<StateType extends IState<StateType, ContextType, CallEdge
     public CallGraph() {
         call_sources = newMap();
         call_edge_info = newMap();
-        block_context_order = newMap();
+        funentry_order = newMap();
+        context_order = newMap();
+        callees_ignoring_contexts = newMap();
     }
 
     /**
@@ -112,26 +122,33 @@ public class CallGraph<StateType extends IState<StateType, ContextType, CallEdge
      * @return true if the call edge changed as result of this operation
      */
     public boolean addTarget(AbstractNode caller, ContextType caller_context, BasicBlock callee, ContextType edge_context,
-                             StateType edge_state, SolverSynchronizer sync, IAnalysis<StateType, ContextType, CallEdgeType, ?, ?> analysis) {
+                             CallEdgeType edge, SolverSynchronizer sync, IAnalysis<StateType, ContextType, CallEdgeType, ?, ?> analysis, ISolverMonitoring<StateType, ContextType> monitoring) {
         boolean changed;
         NodeAndContext<ContextType> nc = new NodeAndContext<>(caller, caller_context);
-        Map<BlockAndContext<ContextType>, CallEdgeType> mb = call_edge_info.get(nc);
-        if (mb == null) {
-            mb = newMap();
-            call_edge_info.put(nc, mb);
-        }
-        BlockAndContext<ContextType> fc = new BlockAndContext<>(callee, edge_context);
-        CallEdgeType call_edge = mb.get(fc); // old call edge state must be subsumed by the new edge state *modulo recovery operations*
+        Map<BlockAndContext<ContextType>, CallEdgeType> mb = call_edge_info.computeIfAbsent(nc, k -> newMap());
+        BlockAndContext<ContextType> to = new BlockAndContext<>(callee, edge_context);
+        CallEdgeType call_edge = mb.get(to); // old call edge state must be subsumed by the new edge state *modulo recovery operations*
+        BlockAndContext<ContextType> from = new BlockAndContext<>(edge.getState().getBasicBlock(), edge.getState().getContext());
+        monitoring.visitPropagationPre(from, to);
         if (call_edge == null) {
             // new edge
-            mb.put(fc, analysis.makeCallEdge(edge_state.clone()));
+            mb.put(to, analysis.cloneCallEdge(edge));
             if (sync != null && isOrdinaryCallEdge(callee))
                 sync.callEdgeAdded(caller.getBlock().getFunction(), callee.getFunction());
             changed = true;
+            size++;
+            Set<Function> callees_ci = callees_ignoring_contexts.get(caller);
+            if (callees_ci == null) {
+                callees_ci = newSet();
+                callees_ignoring_contexts.put(caller, callees_ci);
+            }
+            if (callees_ci.add(callee.getFunction()))
+                size_ignoring_contexts++;
         } else {
             // propagate into existing edge
-            changed = call_edge.getState().propagate(edge_state, true);
+            changed = call_edge.getState().propagate(edge.getState(), true, false);
         }
+        monitoring.visitPropagationPost(from, to, changed);
         if (log.isDebugEnabled())
             log.debug((call_edge == null ? "adding" : "updating") + " call edge from node " + caller.getIndex() + " to " +
                     (isOrdinaryCallEdge(callee) ? "function " : "for-in body ") + callee.getIndex() + " context " + edge_context);
@@ -142,8 +159,8 @@ public class CallGraph<StateType extends IState<StateType, ContextType, CallEdge
      * Adds a reverse edge.
      */
     public void addSource(AbstractNode caller, ContextType caller_context, BasicBlock callee, ContextType callee_context,
-                          ContextType edge_context, boolean implicit) {
-        addToMapSet(call_sources, new BlockAndContext<>(callee, callee_context), new ReverseEdge<>(caller, caller_context, edge_context, implicit));
+                          ContextType edge_context) {
+        addToMapSet(call_sources, new BlockAndContext<>(callee, callee_context), new ReverseEdge<>(caller, caller_context, edge_context));
     }
 
     /**
@@ -154,21 +171,40 @@ public class CallGraph<StateType extends IState<StateType, ContextType, CallEdge
     }
 
     /**
-     * Assigns an order to the given (basic block,context).
+     * Assigns an order to the given function entry.
      */
-    public void registerBlockContext(BasicBlock b, ContextType context) {
-        BlockAndContext<ContextType> fc = new BlockAndContext<>(b, context);
-        if (!block_context_order.containsKey(fc))
-            block_context_order.put(fc, next_block_context_order++);
+    public void registerFunctionEntry(BlockAndContext<ContextType> bc) {
+        if (!funentry_order.containsKey(bc))
+            funentry_order.put(bc, next_funentry_order++);
+    }
+
+    /**
+     * Assigns an order to the given function entry.
+     */
+    public void registerContext(ContextType c) {
+        if (!context_order.containsKey(c))
+            context_order.put(c, next_context_order++);
     }
 
     /**
      * Returns the occurrence order of the given (basic block,context).
      */
-    public int getBlockContextOrder(BlockAndContext<ContextType> bc) {
-        Integer order = block_context_order.get(bc);
+    public int getFunctionEntryOrder(BlockAndContext<ContextType> bc) {
+        Integer order = funentry_order.get(bc);
         if (order == null)
             throw new AnalysisException("Unexpected basic block and context: " + bc);
+        return order;
+    }
+
+    /**
+     * Returns the occurrence order of the given context.
+     */
+    public int getContextOrder(ContextType c) {
+        Integer order = context_order.get(c);
+        if (order == null) {
+            order = next_context_order++;
+            context_order.put(c, order);
+        }
         return order;
     }
 
@@ -203,6 +239,14 @@ public class CallGraph<StateType extends IState<StateType, ContextType, CallEdge
         return mb;
     }
 
+    public int size() {
+        return size;
+    }
+
+    public int getSizeIgnoringContexts() {
+        return size_ignoring_contexts;
+    }
+
     /**
      * Returns a textual description of this call graph.
      * Contexts and pseudo-call-edges are disregarded in the output.
@@ -226,11 +270,7 @@ public class CallGraph<StateType extends IState<StateType, ContextType, CallEdge
             BasicBlock b = me.getKey().getBlock();
             if (isOrdinaryCallEdge(b)) {
                 Function f = b.getFunction();
-                Set<AbstractNode> s = m.get(f);
-                if (s == null) {
-                    s = newSet();
-                    m.put(f, s);
-                }
+                Set<AbstractNode> s = m.computeIfAbsent(f, k -> newSet());
                 for (ReverseEdge<ContextType> re : me.getValue())
                     s.add(re.getCallNode());
             }
@@ -242,10 +282,10 @@ public class CallGraph<StateType extends IState<StateType, ContextType, CallEdge
         List<Map.Entry<Function, List<AbstractNode>>> res = newList();
         for (Map.Entry<Function, Set<AbstractNode>> me : s) {
             List<AbstractNode> ns = newList(me.getValue());
-            ns.sort((n1, n2) -> n1.getSourceLocation().compareTo(n2.getSourceLocation()));
+            ns.sort(Comparator.comparing(AbstractNode::getSourceLocation, new SourceLocation.Comparator()));
             res.add(new AbstractMap.SimpleEntry<>(me.getKey(), ns));
         }
-        res.sort((o1, o2) -> o1.getKey().getSourceLocation().compareTo(o2.getKey().getSourceLocation()));
+        res.sort(Comparator.comparing(o -> o.getKey().getSourceLocation(), new SourceLocation.Comparator()));
         return res;
     }
 
@@ -333,9 +373,9 @@ public class CallGraph<StateType extends IState<StateType, ContextType, CallEdge
         StringBuilder sb = new StringBuilder();
         int total = getNumberOfInvocationsInDifferentContexts(0);
         int single = getNumberOfInvocationsInDifferentContexts(1);
-        sb.append("Total invocations: ").append(total).append("\n");
-        sb.append("Total invocations with single target: ").append(single).append("\n");
-        sb.append("==> % single target invocations: ").append((100 * ((float) single) / total)).append("%\n");
+        sb.append("Total invocations:                                                            ").append(total).append("\n");
+        sb.append("Total invocations with single target:                                         ").append(single).append("\n");
+        sb.append("Single target invocations:                                                    ").append(total > 0 ? (100 * ((float) single) / total) + "%" : "-").append("\n");
         return sb.toString();
     }
 
@@ -348,11 +388,13 @@ public class CallGraph<StateType extends IState<StateType, ContextType, CallEdge
 //                visitor.visit(me1.getKey(), me2.getValue(), me2.getKey());
 //    }
 
-//    public Map<NodeAndContext<ContextType>, Map<BlockAndContext<ContextType>, CallEdgeType>> getCallEdgeInfo() { // (currently unused)
-//        return call_edge_info;
-//    }
+    @SuppressWarnings("unused" /* used by TAJS-meta */)
+    public Map<NodeAndContext<ContextType>, Map<BlockAndContext<ContextType>, CallEdgeType>> getCallEdgeInfo() {
+        return call_edge_info;
+    }
 
-//    public Map<BlockAndContext<ContextType>, Set<ReverseEdge<ContextType>>> getCallSources() { // (currently unused)
-//        return call_sources;
-//    }
+    @SuppressWarnings("unused" /* used by TAJS-meta */)
+    public Map<BlockAndContext<ContextType>, Set<ReverseEdge<ContextType>>> getCallSources() {
+        return call_sources;
+    }
 }

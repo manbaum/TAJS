@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,77 +20,91 @@ import dk.brics.tajs.flowgraph.SourceLocation;
 import dk.brics.tajs.lattice.ObjectLabel.Kind;
 import dk.brics.tajs.options.Options;
 import dk.brics.tajs.util.AnalysisException;
+import dk.brics.tajs.util.Canonicalizer;
+import dk.brics.tajs.util.Collectors;
+import dk.brics.tajs.util.DeepImmutable;
 import dk.brics.tajs.util.Strings;
 
-import java.lang.ref.WeakReference;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
-import java.util.WeakHashMap;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static dk.brics.tajs.util.Collections.newSet;
+import static dk.brics.tajs.util.Collections.singleton;
 
 /**
  * Abstract value.
  * Value objects are immutable.
  */
-public final class Value implements Undef, Null, Bool, Num, Str {
+public class Value implements Undef, Null, Bool, Num, Str, PKeys, DeepImmutable {
 
-    private final static int BOOL_TRUE = 0x0000001; // true
+    private final static int BOOL_TRUE = 0x00000001; // true
 
-    private final static int BOOL_FALSE = 0x0000002; // false
+    private final static int BOOL_FALSE = 0x00000002; // false
 
-    private final static int UNDEF = 0x0000004; // undefined
+    private final static int UNDEF = 0x00000004; // undefined
 
-    private final static int NULL = 0x0000008; // null
+    private final static int NULL = 0x00000008; // null
 
-    private final static int STR_UINT = 0x0000010; // strings representing numbers that are UInt32
+    private final static int STR_UINT = 0x00000010; // strings representing numbers that are UInt32
 
-    private final static int STR_OTHERNUM = 0x0000020; // strings representing unbounded non-UInt32 numbers, including Infinity, -Infinity, and NaN
+    private final static int STR_OTHERNUM = 0x00000020; // strings representing unbounded non-UInt32 numbers, including Infinity, -Infinity, and NaN
 
-    private final static int STR_PREFIX = 0x0000040; // strings that consist of a fixed nonempty string followed by identifier-parts
+    private final static int STR_PREFIX = 0x00000040; // strings that consist of a fixed nonempty string followed by an unknown string
 
-    private final static int STR_IDENTIFIER = 0x0000080; // strings that are valid identifiers (excluding reserved names but including "NaN" and "Infinity")
+    private final static int STR_IDENTIFIER = 0x00000080; // strings that are valid identifiers (excluding reserved names but including "NaN" and "Infinity")
 
-    private final static int STR_IDENTIFIERPARTS = 0x0000100; // strings that are valid identifier-parts (i.e. reserved names and identifiers without the start symbol)
+    private final static int STR_OTHERIDENTIFIERPARTS = 0x00000100; // strings that are valid identifier-parts (i.e. reserved names and identifiers without the start symbol), excluding STR_IDENTIFIER and STR_UINT
 
-    private final static int STR_OTHER = 0x0000200; // strings not representing numbers and not identifier-parts
+    private final static int STR_OTHER = 0x00000200; // strings not representing numbers and not identifier-parts
 
-    private final static int STR_JSON = 0x0000400; // strings originating from a JSON source
+    private final static int STR_JSON = 0x00000400; // strings originating from a JSON source
 
-    private final static int NUM_NAN = 0x0001000; // NaN
+    private final static int NUM_NAN = 0x00001000; // NaN
 
-    private final static int NUM_INF = 0x0002000; // +/-Infinity
+    private final static int NUM_INF = 0x00002000; // +/-Infinity
 
-    private final static int NUM_UINT = 0x0004000; // UInt32 numbers
+    private final static int NUM_UINT_POS = 0x00004000; // UInt32 numbers (not zero)
 
-    private final static int NUM_OTHER = 0x0008000; // numbers that are not UInt32, not NaN, and not +/-Infinity
+    private final static int NUM_OTHER = 0x00008000; // numbers that are not UInt32, not NaN, and not +/-Infinity
 
-    private final static int ATTR_DONTENUM = 0x0010000; // [[DontEnum]] property
+    private final static int ATTR_DONTENUM = 0x00010000; // [[DontEnum]] property
 
-    private final static int ATTR_NOTDONTENUM = 0x0020000; // not [[DontEnum]] property
+    private final static int ATTR_NOTDONTENUM = 0x00020000; // not [[DontEnum]] property
 
-    private final static int ATTR_READONLY = 0x0040000; // [[ReadOnly]] property
+    private final static int ATTR_READONLY = 0x00040000; // [[ReadOnly]] property
 
-    private final static int ATTR_NOTREADONLY = 0x0080000; // not [[ReadOnly]] property
+    private final static int ATTR_NOTREADONLY = 0x00080000; // not [[ReadOnly]] property
 
-    private final static int ATTR_DONTDELETE = 0x0100000; // [[DontDelete]] property
+    private final static int ATTR_DONTDELETE = 0x00100000; // [[DontDelete]] property
 
-    private final static int ATTR_NOTDONTDELETE = 0x0200000; // not [[DontDelete]] property
+    private final static int ATTR_NOTDONTDELETE = 0x00200000; // not [[DontDelete]] property
 
-    private final static int MODIFIED = 0x1000000; // maybe modified property (since function entry)
+    private final static int MODIFIED = 0x01000000; // maybe modified property (since function entry)
 
-    private final static int ABSENT = 0x2000000; // maybe absent property
+    private final static int ABSENT = 0x02000000; // maybe absent property
 
-    private final static int PRESENT = 0x4000000; // maybe present property, only used if var!=null
+    private final static int PRESENT_DATA = 0x04000000; // maybe present data property, only used if var!=null
 
-    private final static int UNKNOWN = 0x8000000; // unknown (lazy propagation)
+    private final static int PRESENT_ACCESSOR = 0x08000000; // maybe present getter/setter property, only used if var!=null
 
-    private final static int EXTENDEDSCOPE = 0x10000000; // for extended scope registers (for-in and finally blocks)
+    private final static int UNKNOWN = 0x10000000; // unknown (lazy propagation)
+
+    private final static int EXTENDEDSCOPE = 0x20000000; // for extended scope registers (for-in and finally blocks)
+
+    private final static int NUM_ZERO = 0x40000000; // zero (positive or negative)
+
+    private final static int NUM_UINT = NUM_UINT_POS | NUM_ZERO; // UInt32 numbers
 
     private final static int BOOL = BOOL_TRUE | BOOL_FALSE;
 
-    private final static int STR = STR_UINT | STR_OTHERNUM | STR_PREFIX | STR_IDENTIFIER | STR_IDENTIFIERPARTS | STR_OTHER | STR_JSON;
+    private final static int STR_IDENTIFIERPARTS = STR_UINT | STR_IDENTIFIER | STR_OTHERIDENTIFIERPARTS;
+
+    private final static int STR = STR_OTHERNUM | STR_PREFIX | STR_IDENTIFIERPARTS | STR_OTHER | STR_JSON;
 
     private final static int NUM = NUM_NAN | NUM_INF | NUM_UINT | NUM_OTHER;
 
@@ -104,19 +118,9 @@ public final class Value implements Undef, Null, Bool, Num, Str {
 
     private final static int PROPERTYDATA = ATTR | MODIFIED;
 
+    private final static int META = ABSENT | PROPERTYDATA | EXTENDEDSCOPE | PRESENT_DATA | PRESENT_ACCESSOR;
+
     private final static int PRIMITIVE = UNDEF | NULL | BOOL | NUM | STR;
-
-    private static Map<Value, WeakReference<Value>> value_cache;
-
-    private static int value_cache_hits;
-
-    private static int value_cache_misses;
-
-    private static Map<Set<ObjectLabel>, WeakReference<Set<ObjectLabel>>> objset_cache;
-
-    private static int objset_cache_hits;
-
-    private static int objset_cache_misses;
 
     private static Value theNone;
 
@@ -136,13 +140,23 @@ public final class Value implements Undef, Null, Bool, Num, Str {
 
     private static Value theStrUInt;
 
+    private static Value theStrOtherNum;
+
+    private static Value theStrNumeric;
+
+    private static Value theStrNotNumeric;
+
     private static Value theStrNotUInt;
+
+    private static Value theStrIdent;
 
     private static Value theJSONStr;
 
     private static Value theNumAny;
 
     private static Value theNumUInt;
+
+    private static Value theNumUIntPos;
 
     private static Value theNumNotNaNInf;
 
@@ -160,27 +174,37 @@ public final class Value implements Undef, Null, Bool, Num, Str {
 
     /*
      * Representation invariant:
-     * !((flags & (STR_UINT | STR_OTHERNUM | STR_IDENTIFIER | STR_IDENTIFIERPARTS | STR_OTHER)) != 0 && str != null)
+     * !((flags & (STR_OTHERNUM | STR_IDENTIFIERPARTS | STR_OTHER)) != 0 && str != null)
      * &&
      * !((flags & STR_PREFIX) != 0 && (str == null || str.length == 0))
-     * &&
-     * !((flags & STR_IDENTIFIER) != 0 && (flags & STR_IDENTIFIERPARTS) != 0)
      * &&
      * !((flags & NUM_ANY) != 0 && num != null)
      * &&
      * !(object_labels != null && object_labels.isEmpty())
      * &&
+     * !(getters != null && getters.isEmpty())
+     * &&
+     * !(setters != null && setters.isEmpty())
+     * &&
+     * !(excluded_strings != null && excluded_strings.isEmpty())
+     * &&
+     * !(included_strings != null && included_strings.size() <= 1)
+     * &&
+     * !(v.excluded_strings != null && v.included_strings != null)
+     * &&
      * !(num != null && Double.isNaN(num))
      * &&
-     * !((flags & UNKNOWN) != 0 && ((flags & ~UNKNOWN) != 0 || str != null || num != null || !object_labels.isEmpty()))
+     * !((flags & UNKNOWN) != 0 && ((flags & ~UNKNOWN) != 0 || str != null || num != null || !object_labels.isEmpty()) || !getters.isEmpty()) || !setters.isEmpty()))
      * &&
-     * !(var != null && ((flags & PRIMITIVE) != 0 || str != null || num != null || !object_labels.isEmpty()))
+     * !(var != null && ((flags & PRIMITIVE) != 0 || str != null || num != null || !object_labels.isEmpty()) || !getters.isEmpty()) || !setters.isEmpty()))
      * &&
-     * !((flags & PRESENT) != 0 && var == null)
-     * 
+     * !((flags & (PRESENT_DATA | PRESENT_ACCESSOR) != 0 && var == null)
+     * &&
+     * !(v.excluded_strings != null && (v.flags & STR) == 0)
+     * &&
+     * !(v.included_strings != null && (v.flags & STR) == 0)
+     *
      * For the String facet, note that the various categories are not all disjoint.
-     * Also, at most one of STR_PREFIX, STR_IDENTIFIER, and STR_IDENTIFIERPARTS can be set,
-     * although STR_IDENTIFIERPARTS subsumes the other two (and STR_UINT).
      */
 
     /**
@@ -201,31 +225,57 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     /**
      * Property reference for polymorphic value.
      */
-    private PropertyReference var; // polymorphic if non-null
+    private ObjectProperty var; // polymorphic if non-null
 
     /**
-     * Possible values regarding object references.
+     * Possible values regarding object references and symbols.
      */
     private Set<ObjectLabel> object_labels;
 
     /**
+     * Possible values regarding getters.
+     */
+    private Set<ObjectLabel> getters;
+
+    /**
+     * Possible values regarding setters.
+     */
+    private Set<ObjectLabel> setters;
+
+    /**
+     * Strings that are excluded.
+     * (Only used for fuzzy strings.)
+     */
+    private Set<String> excluded_strings;
+
+    /**
+     * Strings that are included.
+     * (Only used for fuzzy strings.)
+     */
+    private Set<String> included_strings;
+
+    /**
+     * Information about partitions that are sound to use for partitioned variables, or null if none.
+     */
+    private FunctionPartitions functionPartitions;
+
+    /**
+     * Function type signatures, or null if none.
+     */
+    private FunctionTypeSignatures functionTypeSignatures;
+
+    /**
      * Hash code.
      */
-    private int hashcode;
+    protected int hashcode;
 
-    private static boolean canonicalizing; // set during canonicalization
+    protected static boolean canonicalizing; // set during canonicalization
 
     static {
         init();
     }
 
     private static void init() {
-        value_cache = new WeakHashMap<>();
-        objset_cache = new WeakHashMap<>();
-        value_cache_hits = 0;
-        value_cache_misses = 0;
-        objset_cache_hits = 0;
-        objset_cache_misses = 0;
         theNone = reallyMakeNone();
         theNoneModified = reallyMakeNoneModified();
         theUndef = reallyMakeUndef(null);
@@ -235,10 +285,15 @@ public final class Value implements Undef, Null, Bool, Num, Str {
         theBoolAny = reallyMakeBool(null);
         theStrAny = reallyMakeAnyStr();
         theStrUInt = reallyMakeAnyStrUInt();
+        theStrOtherNum = reallyMakeAnyStrOtherNum();
+        theStrNumeric = reallyMakeAnyStrNumeric();
+        theStrNotNumeric = reallyMakeAnyStrNotNumeric();
         theStrNotUInt = reallyMakeAnyStrNotUInt();
+        theStrIdent = reallyMakeAnyStrIdent();
         theJSONStr = reallyMakeJSONStr();
         theNumAny = reallyMakeAnyNum();
         theNumUInt = reallyMakeAnyUInt();
+        theNumUIntPos = reallyMakeAnyUIntPos();
         theNumNotNaNInf = reallyMakeAnyNumNotNaNInf();
         theNumOther = reallyMakeAnyNumOther();
         theNumNaN = reallyMakeNumNaN();
@@ -251,11 +306,14 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     /**
      * Constructs a new none-value.
      */
-    private Value() {
+    protected Value() {
         flags = 0;
         num = null;
         str = null;
-        object_labels = null;
+        object_labels = getters = setters = null;
+        excluded_strings = included_strings = null;
+        functionPartitions = null;
+        functionTypeSignatures = null;
         var = null;
         hashcode = 0;
     }
@@ -263,126 +321,105 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     /**
      * Constructs a shallow clone of the given value object.
      */
-    private Value(Value v) {
+    protected Value(Value v) {
         flags = v.flags;
         num = v.num;
         str = v.str;
         object_labels = v.object_labels;
+        getters = v.getters;
+        setters = v.setters;
+        excluded_strings = v.excluded_strings;
+        included_strings = v.included_strings;
+        functionPartitions = v.functionPartitions;
+        functionTypeSignatures = v.functionTypeSignatures;
         var = v.var;
         hashcode = v.hashcode;
     }
 
     /**
-     * Put the value into canoncial form.
+     * Put the value into canonical form.
      */
-    private static Value canonicalize(Value v) {
-        v.hashcode = v.flags * 17
-                + (v.var != null ? v.var.hashCode() : 0)
-                + (v.num != null ? v.num.hashCode() : 0)
-                + (v.str != null ? v.str.hashCode() : 0)
-                + (v.object_labels != null ? v.object_labels.hashCode() : 0);
+    protected static Value canonicalize(Value v) {
         if (Options.get().isDebugOrTestEnabled()) { // checking representation invariants
             String msg = null;
-            if ((v.flags & (STR_UINT | STR_OTHERNUM | STR_IDENTIFIER | STR_IDENTIFIERPARTS | STR_OTHER)) != 0 && v.str != null)
+            if ((v.flags & (STR_OTHERNUM | STR_IDENTIFIERPARTS | STR_OTHER)) != 0 && v.str != null)
                 msg = "fixed string and flags inconsistent";
             else if ((v.flags & STR_PREFIX) != 0 && (v.str == null || v.str.isEmpty()))
                 msg = "prefix string inconsistent";
-            else if ((v.flags & STR_IDENTIFIER) != 0 && (v.flags & STR_IDENTIFIERPARTS) != 0)
-                msg = "identifier string flags inconsistent";
             else if ((v.flags & NUM) != 0 && v.num != null)
                 msg = "number facet inconsistent";
             else if (v.num != null && Double.isNaN(v.num))
                 msg = "number constant is NaN";
             else if (v.object_labels != null && v.object_labels.isEmpty())
                 msg = "empty set of object labels";
-            else if ((v.flags & UNKNOWN) != 0 && ((v.flags & ~UNKNOWN) != 0 || v.str != null || v.num != null || (v.object_labels != null && !v.object_labels.isEmpty())))
+            else if (v.getters != null && v.getters.isEmpty())
+                msg = "empty set of getters";
+            else if (v.setters != null && v.setters.isEmpty())
+                msg = "empty set of setters";
+            else if (v.excluded_strings != null && v.excluded_strings.isEmpty())
+                msg = "empty set of excluded strings";
+            else if (v.included_strings != null && v.included_strings.isEmpty())
+                msg = "empty set of included strings";
+            else if (v.included_strings != null && v.included_strings.size() <= 1)
+                msg = "invalid number of included strings";
+            else if (v.excluded_strings != null && v.included_strings != null)
+                msg = "has both excluded strings and included strings";
+            else if ((v.flags & UNKNOWN) != 0 && ((v.flags & ~UNKNOWN) != 0 || v.str != null || v.num != null
+                    || (v.object_labels != null && !v.object_labels.isEmpty())
+                    || (v.getters != null && !v.getters.isEmpty())
+                    || (v.setters != null && !v.setters.isEmpty())))
                 msg = "'unknown' inconsistent with other flags";
-            else if (v.var != null && ((v.flags & PRIMITIVE) != 0 || v.str != null || v.num != null || (v.object_labels != null && !v.object_labels.isEmpty())))
+            else if (v.var != null && ((v.flags & PRIMITIVE) != 0 || v.str != null || v.num != null
+                    || (v.object_labels != null && !v.object_labels.isEmpty())
+                    || (v.getters != null && !v.getters.isEmpty())
+                    || (v.setters != null && !v.setters.isEmpty())))
                 msg = "mix of polymorphic and ordinary value";
-            else if ((v.flags & PRESENT) != 0 && v.var == null)
+            else if ((v.flags & (PRESENT_DATA | PRESENT_ACCESSOR)) != 0 && v.var == null)
                 msg = "PRESENT set for non-polymorphic value";
+            else if (v.excluded_strings != null && (v.flags & STR) == 0)
+                msg = "excluded strings present without fuzzy strings";
+            else if (v.included_strings != null && (v.flags & STR) == 0)
+                msg = "included_strings present without fuzzy strings";
             if (msg != null)
                 throw new AnalysisException("Invalid value (0x" + Integer.toHexString(v.flags) + ","
-                        + Strings.escape(v.str) + "," + v.num + "," + v.object_labels + "), " + msg);
+                        + Strings.escape(v.str) + "," + v.num + "," + v.object_labels
+                        + "," + v.getters + "," + v.setters + "," + (v.excluded_strings != null ? Strings.escape(v.excluded_strings) : null)
+                        + "," + (v.included_strings != null ? Strings.escape(v.included_strings) : null) + "), " + msg);
             if (Options.get().isPolymorphicDisabled() && v.isPolymorphic())
                 throw new AnalysisException("Unexpected polymorphic value");
         }
         canonicalizing = true;
         if (v.object_labels != null)
-            v.object_labels = canonicalize(v.object_labels);
-        WeakReference<Value> ref2 = value_cache.get(v);
-        Value cv = ref2 != null ? ref2.get() : null;
-        if (cv == null) {
-            cv = v;
-            value_cache.put(v, new WeakReference<>(v));
-            value_cache_misses++;
-        } else
-            value_cache_hits++;
+            v.object_labels = Canonicalizer.get().canonicalizeSet(v.object_labels);
+        if (v.getters != null)
+            v.getters = Canonicalizer.get().canonicalizeSet(v.getters);
+        if (v.setters != null)
+            v.setters = Canonicalizer.get().canonicalizeSet(v.setters);
+        if (v.excluded_strings != null)
+            v.excluded_strings = Canonicalizer.get().canonicalizeStringSet(v.excluded_strings);
+        if (v.included_strings != null)
+            v.included_strings = Canonicalizer.get().canonicalizeStringSet(v.included_strings);
+        v.hashcode = v.computeHashCode();
+        Value cv = Canonicalizer.get().canonicalize(v);
         canonicalizing = false;
         return cv;
     }
 
     /**
-     * Put the object label set into canonical form.
-     * The resulting set is immutable.
+     * Computes the hash code for this value.
      */
-    private static Set<ObjectLabel> canonicalize(Set<ObjectLabel> objlabels) { // TODO: use this method for all immutable object label sets (but only for those that are immutable!)
-        Set<ObjectLabel> res;
-        WeakReference<Set<ObjectLabel>> ref1 = objset_cache.get(objlabels);
-        Set<ObjectLabel> so = ref1 != null ? ref1.get() : null;
-        if (so == null) {
-            objset_cache.put(objlabels, new WeakReference<>(objlabels));
-            res = objlabels;
-            objset_cache_misses++;
-        } else {
-            res = so;
-            objset_cache_hits++;
-        }
-        if (Options.get().isDebugOrTestEnabled())
-            return Collections.unmodifiableSet(res);
-        return res;
-    }
-
-    /**
-     * Returns the value cache size.
-     */
-    public static int getValueCacheSize() {
-        return value_cache.size();
-    }
-
-    /**
-     * Returns the number of value cache misses.
-     */
-    public static int getNumberOfValueCacheMisses() {
-        return value_cache_misses;
-    }
-
-    /**
-     * Returns the number of value cache hits.
-     */
-    public static int getNumberOfValueCacheHits() {
-        return value_cache_hits;
-    }
-
-    /**
-     * Returns the object set cache size.
-     */
-    public static int getObjectSetCacheSize() {
-        return objset_cache.size();
-    }
-
-    /**
-     * Returns the number of object set cache misses.
-     */
-    public static int getNumberOfObjectSetCacheMisses() {
-        return objset_cache_misses;
-    }
-
-    /**
-     * Returns the number of object set cache hits.
-     */
-    public static int getNumberOfObjectSetCacheHits() {
-        return objset_cache_hits;
+    protected int computeHashCode() {
+        return flags * 17
+                + (var != null ? var.hashCode() : 0)
+                + (num != null ? num.hashCode() : 0)
+                + (str != null ? str.hashCode() : 0)
+                + (object_labels != null ? object_labels.hashCode() : 0)
+                + (getters != null ? getters.hashCode() : 0)
+                + (setters != null ? setters.hashCode() : 0)
+                + (excluded_strings != null ? excluded_strings.hashCode() : 0)
+                + (included_strings != null ? included_strings.hashCode() : 0)
+                + (functionPartitions != null ? functionPartitions.hashCode() : 0)
+                + (functionTypeSignatures != null ? functionTypeSignatures.hashCode() : 0);
     }
 
     /**
@@ -390,6 +427,43 @@ public final class Value implements Undef, Null, Bool, Num, Str {
      */
     public static void reset() {
         init();
+    }
+
+    /**
+     * Returns the free variable info, or null if empty.
+     */
+    public FunctionPartitions getFunctionPartitions() {
+        checkNotPolymorphicOrUnknown();
+        return functionPartitions;
+    }
+
+    /**
+     * Returns the function type signatures, or null if none.
+     */
+    public FunctionTypeSignatures getFunctionTypeSignatures() {
+        return functionTypeSignatures;
+    }
+
+    /**
+     * Constructs a new value as a copy of this one but with the given FunctionPartitions.
+     */
+    public Value setFunctionPartitions(FunctionPartitions functionPartitions) {
+        if (Objects.equals(functionPartitions, this.functionPartitions))
+            return this;
+        Value r = new Value(this);
+        r.functionPartitions = functionPartitions;
+        return canonicalize(r);
+    }
+
+    /**
+     * Constructs a new value as a copy of this one but with the given additional function type signatures.
+     */
+    public Value addFunctionTypeSignatures(FunctionTypeSignatures functionTypeSignatures) {
+        if (FunctionTypeSignatures.containsAll(this.functionTypeSignatures, functionTypeSignatures))
+            return this;
+        Value r = new Value(this);
+        r.functionTypeSignatures = FunctionTypeSignatures.union(this.functionTypeSignatures, functionTypeSignatures);
+        return canonicalize(r);
     }
 
     /**
@@ -407,22 +481,24 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     }
 
     /**
-     * Returns the property reference.
+     * Returns the object property.
      * Only to be called if the value is polymorphic.
      */
-    public PropertyReference getPropertyReference() {
+    public ObjectProperty getObjectProperty() {
         return var;
     }
 
     /**
      * Constructs a fresh polymorphic value from the attributes (including absence and presence) of this value.
      */
-    public Value makePolymorphic(PropertyReference prop) {
+    public Value makePolymorphic(ObjectProperty prop) {
         Value r = new Value();
         r.var = prop;
-        r.flags |= flags & (ATTR | ABSENT | PRESENT | EXTENDEDSCOPE);
-        if (isMaybePresent())
-            r.flags |= PRESENT;
+        r.flags |= flags & (ATTR | ABSENT | PRESENT_DATA | PRESENT_ACCESSOR | EXTENDEDSCOPE);
+        if (isMaybePresentData())
+            r.flags |= PRESENT_DATA;
+        if (isMaybePresentAccessor())
+            r.flags |= PRESENT_ACCESSOR;
         return canonicalize(r);
     }
 
@@ -434,7 +510,7 @@ public final class Value implements Undef, Null, Bool, Num, Str {
             return this;
         Value r = new Value(this);
         r.var = null;
-        r.flags &= ~PRESENT;
+        r.flags &= ~(PRESENT_DATA | PRESENT_ACCESSOR);
         return canonicalize(r);
     }
 
@@ -453,11 +529,21 @@ public final class Value implements Undef, Null, Bool, Num, Str {
      *
      * @throws AnalysisException if the value is polymorphic or 'unknown'.
      */
-    private void checkNotPolymorphicOrUnknown() {
+    public void checkNotPolymorphicOrUnknown() {
         if (isPolymorphic())
             throw new AnalysisException("Unexpected polymorphic value!");
         if (isUnknown())
             throw new AnalysisException("Unexpected 'unknown' value!");
+    }
+
+    /**
+     * Asserts that the value is not a getter/setter.
+     *
+     * @throws AnalysisException if the value contains getters or setters.
+     */
+    private void checkNoGettersSetters() {
+        if (getters != null || setters != null)
+            throw new AnalysisException("Unexpected getter/setter value!");
     }
 
     private static Value reallyMakeNone() {
@@ -483,15 +569,16 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     }
 
     /**
-     * Returns true if this is the abstract value representing no concrete values.
-     * (If a property value is none, the abstract object represents zero concrete objects.)
-     * The modified flag is ignored.
+     * Returns true if this abstract value represents no concrete values.
+     * If a property value is "none", the abstract object represents zero concrete objects.
+     * The modified flag, attributes, etc. are ignored.
+     * "Unknown" is treated as non-"none".
      */
     public boolean isNone() {
         if (var == null)
-            return (flags & ~MODIFIED) == 0 && num == null && str == null && object_labels == null;
+            return (flags & (PRIMITIVE | ABSENT | UNKNOWN)) == 0 && num == null && str == null && object_labels == null && getters == null && setters == null;
         else
-            return (flags & (ABSENT | PRESENT)) == 0;
+            return (flags & (ABSENT | PRESENT_DATA | PRESENT_ACCESSOR)) == 0;
     }
 
     /**
@@ -556,8 +643,84 @@ public final class Value implements Undef, Null, Bool, Num, Str {
             return this;
         Value r = new Value(this);
         r.flags &= ~ABSENT;
-        if (r.var != null && (r.flags & PRESENT) == 0)
+        if (r.var != null && (r.flags & (PRESENT_DATA | PRESENT_ACCESSOR)) == 0)
             r.var = null;
+        return canonicalize(r);
+    }
+
+    /**
+     * Constructs a value as a copy of this value but only with getter/setter values.
+     */
+    public Value restrictToGetterSetter() {
+        checkNotPolymorphicOrUnknown();
+        if (!isMaybePrimitive() && !isMaybeObjectOrSymbol())
+            return this;
+        Value r = new Value(this);
+        r.flags &= ~PRIMITIVE;
+        r.num = null;
+        r.str = null;
+        r.object_labels = null;
+        r.excluded_strings = r.included_strings = null;
+        return canonicalize(r);
+    }
+
+    /**
+     * Constructs a value as a copy of this value but only with getter values.
+     */
+    public Value restrictToGetter() {
+        checkNotPolymorphicOrUnknown();
+        if (getters == null)
+            return theNone;
+        Value r = new Value();
+        r.getters = getters;
+        return canonicalize(r);
+    }
+
+    /**
+     * Constructs a value as a copy of this value but only with setter values.
+     */
+    public Value restrictToSetter() {
+        checkNotPolymorphicOrUnknown();
+        if (setters == null)
+            return theNone;
+        Value r = new Value();
+        r.setters = setters;
+        return canonicalize(r);
+    }
+
+    /**
+     * Constructs a value as a copy of this value but definitely not a getter or setter.
+     */
+    public Value restrictToNotGetterSetter() {
+        checkNotUnknown();
+        if (getters == null && setters == null)
+            return this;
+        Value r = new Value(this);
+        r.getters = r.setters = null;
+        return canonicalize(r);
+    }
+
+    /**
+     * Constructs a value as a copy of this value but definitely not a getter.
+     */
+    public Value restrictToNotGetter() {
+        checkNotUnknown();
+        if (getters == null)
+            return this;
+        Value r = new Value(this);
+        r.getters = null;
+        return canonicalize(r);
+    }
+
+    /**
+     * Constructs a value as a copy of this value but definitely not a setter.
+     */
+    public Value restrictToNotSetter() {
+        checkNotUnknown();
+        if (setters == null)
+            return this;
+        Value r = new Value(this);
+        r.setters = null;
         return canonicalize(r);
     }
 
@@ -916,55 +1079,48 @@ public final class Value implements Undef, Null, Bool, Num, Str {
 
     /**
      * Constructs a value as the join of this value and the given value.
+     *
+     * @param widen if true, apply widening
      */
-    public Value join(Value v) {
+    public Value join(Value v, boolean widen) {
+        return PartitionedValue.join(this, v, widen);
+    }
+
+    protected Value joinSingleValue(Value v, boolean widen) {
         if (v == this)
             return this;
         Value r = new Value(this);
-        if (r.joinMutable(v)) {
+        if (r.joinMutableSingleValue(v, widen)) {
             return canonicalize(r);
         }
         return this;
     }
 
     /**
+     * Constructs a value as the join of this value and the given value.
+     */
+    public Value join(Value v) {
+        return join(v, false);
+    }
+
+    /**
      * Constructs a value as the join of the given collection of values.
      */
-    public static Value join(Iterable<Value> values) {
-        Value r = null;
-        boolean first = true;
-        for (Value v : values)
-            if (first) {
-                r = new Value(v);
-                first = false;
-            } else
-                r.joinMutable(v);
-        if (r == null)
-            r = makeNone();
-        return canonicalize(r);
+    public static Value join(Collection<Value> values) {
+        return PartitionedValue.join(values);
     }
 
     /**
      * Constructs a value as the join of the given collection of values.
      */
     public static Value join(Value... values) {
-        Value r = null;
-        boolean first = true;
-        for (Value v : values)
-            if (first) {
-                r = new Value(v);
-                first = false;
-            } else
-                r.joinMutable(v);
-        if (r == null)
-            r = makeNone();
-        return canonicalize(r);
+        return join(Arrays.asList(values));
     }
 
     /**
      * Joins the given value into this one.
      */
-    private boolean joinMutable(Value v) {
+    protected boolean joinMutableSingleValue(Value v, boolean widen) {
         if (v.isUnknown())
             return false;
         if (isPolymorphic() && v.isPolymorphic() && !var.equals(v.var))
@@ -974,6 +1130,10 @@ public final class Value implements Undef, Null, Bool, Num, Str {
             num = v.num;
             str = v.str;
             object_labels = v.object_labels;
+            getters = v.getters;
+            setters = v.setters;
+            excluded_strings = v.excluded_strings;
+            included_strings = v.included_strings;
             var = v.var;
             return true;
         }
@@ -1012,6 +1172,8 @@ public final class Value implements Undef, Null, Bool, Num, Str {
                 }
             } // otherwise, neither is a single number, so do nothing
             // strings
+            modified |= joinIncludedStrings(v, widen);
+            modified |= joinExcludedStrings(v, widen);
             modified |= joinSingleStringOrPrefixString(v);
             // objects
             if (v.object_labels != null) {
@@ -1024,18 +1186,152 @@ public final class Value implements Undef, Null, Bool, Num, Str {
                     object_labels.addAll(v.object_labels);
                 }
             }
+            if (v.getters != null) {
+                if (getters == null) {
+                    modified = true;
+                    getters = v.getters;
+                } else if (!getters.containsAll(v.getters)) {
+                    modified = true;
+                    getters = newSet(getters);
+                    getters.addAll(v.getters);
+                }
+            }
+            if (v.setters != null) {
+                if (setters == null) {
+                    modified = true;
+                    setters = v.setters;
+                } else if (!setters.containsAll(v.setters)) {
+                    modified = true;
+                    setters = newSet(setters);
+                    setters.addAll(v.setters);
+                }
+            }
         }
         // flags
         flags |= v.flags & ~STR_PREFIX; // STR_PREFIX is handled above by joinSingleStringOrPrefixString
         if (var == null)
-            flags &= ~PRESENT;
-        if ((flags & STR_IDENTIFIERPARTS) != 0)
-            flags &= ~(STR_PREFIX | STR_IDENTIFIER);
-        else if ((flags & STR_IDENTIFIER) != 0)
+            flags &= ~(PRESENT_DATA | PRESENT_ACCESSOR);
+        if ((flags & (STR_OTHERIDENTIFIERPARTS | STR_IDENTIFIER)) != 0)
             flags &= ~STR_PREFIX;
         if (flags != oldflags)
             modified = true;
+        if (joinMutableFunctionPartitions(v))
+            modified = true;
+        if (joinMutableFunctionTypeSignatures(v))
+            modified = true;
         return modified;
+    }
+
+    /**
+     * Joins the FunctionPartitions from v into the FunctionPartitions of this.
+     */
+    private boolean joinMutableFunctionPartitions(Value v) {
+        if (v.functionPartitions == null)
+            return false;
+        FunctionPartitions old = functionPartitions;
+        functionPartitions = v.functionPartitions.join(functionPartitions);
+        return !functionPartitions.equals(old);
+    }
+
+    /**
+     * Joins the functionTypeSignatures from v into the functionTypeSignatures of this.
+     */
+    private boolean joinMutableFunctionTypeSignatures(Value v) {
+        if (v.functionTypeSignatures == null)
+            return false;
+        FunctionTypeSignatures old = functionTypeSignatures;
+        functionTypeSignatures = FunctionTypeSignatures.join(functionTypeSignatures, v.functionTypeSignatures);
+        return !functionTypeSignatures.equals(old);
+    }
+
+    /**
+     * Joins included_strings from v into this value.
+     * No other parts of v are used.
+     *
+     * @return true if this value is modified
+     */
+    private boolean joinIncludedStrings(Value v, boolean widen) {
+        if (included_strings != null && v.included_strings != null) {
+            // both this and v have included strings, so just union
+            this.included_strings = newSet(included_strings);
+            boolean changed = included_strings.addAll(v.included_strings);
+            if (widen && changed) {
+                // apply widening
+                included_strings = null;
+            }
+            return changed;
+        }
+        if (included_strings != null) {
+            // this has included strings but v doesn't
+            if (v.isNotStr()) {
+                // v has no strings
+                return false;
+            } else {
+                // v has strings
+                if (v.str != null && (v.flags & STR_PREFIX) == 0)
+                    if (included_strings.contains(v.str)) {
+                        // v contains a fixed string that is already in included_strings
+                        return false;
+                    } else if (!widen) {
+                        // v contains a fixed string that is not already in included_strings
+                        included_strings = newSet(included_strings);
+                        included_strings.add(v.str);
+                        if (included_strings.size() > Options.Constants.STRING_SETS_BOUND)
+                            included_strings = null;
+                        return true;
+                    }
+                // v contains infinitely many strings, or apply widening
+                included_strings = null;
+                return true;
+            }
+        }
+        if (v.included_strings != null) {
+            // this doesn't have included strings, but v does
+            if (isNotStr()) {
+                // this has no strings
+                included_strings = v.included_strings;
+                return true;
+            } else {
+                // this has strings
+                if (str != null && (flags & STR_PREFIX) == 0 && v.included_strings.contains(str)) {
+                    // this contains a fixed string that is already in v.included_strings
+                    included_strings = v.included_strings;
+                    return true;
+                }
+                // this contains infinitely many strings
+                return false;
+            }
+        }
+        // neither this nor v have strings
+        return false;
+    }
+
+    /**
+     * Joins excluded_strings of given value into this value.
+     * No other parts of v are used.
+     *
+     * @return true if this value is modified
+     */
+    private boolean joinExcludedStrings(Value v, boolean widen) {
+        if (excluded_strings == null && v.excluded_strings == null)
+            return false;
+        Set<String> new_excluded_strings = excluded_strings == null ? newSet() : newSet(excluded_strings);
+        // remove the strings from this.excluded_strings that are matched by v
+        new_excluded_strings.removeIf(v::isMaybeStr);
+        // add the strings from v.excluded_strings that are not matched by this
+        if (v.excluded_strings != null)
+            new_excluded_strings.addAll(v.excluded_strings.stream().filter(s -> !isMaybeStr(s)).collect(Collectors.toSet()));
+        // fix representation if empty
+        if (new_excluded_strings.isEmpty())
+            new_excluded_strings = null;
+        if (widen && new_excluded_strings != null && excluded_strings != null && !new_excluded_strings.equals(excluded_strings)) {
+            // apply widening
+            new_excluded_strings = null;
+        }
+        boolean changed = (new_excluded_strings == null) != (excluded_strings == null) ||
+                (new_excluded_strings != null && !new_excluded_strings.equals(excluded_strings));
+        excluded_strings = new_excluded_strings;
+        return changed;
     }
 
     /**
@@ -1050,45 +1346,19 @@ public final class Value implements Undef, Null, Bool, Num, Str {
         if (!(obj instanceof Value))
             return false;
         Value v = (Value) obj;
-        //noinspection StringEquality,NumberEquality
+        // noinspection StringEquality
         return flags == v.flags
                 && (var == v.var || (var != null && v.var != null && var.equals(v.var)))
-                && (num == v.num || (num != null && v.num != null && num.equals(v.num)))
+                && ((num == null && v.num == null) || (num != null && v.num != null && num.equals(v.num)))
                 && (str == v.str || (str != null && v.str != null && str.equals(v.str)))
-                && (object_labels == v.object_labels || (object_labels != null && v.object_labels != null && object_labels.equals(v.object_labels)));
+                && (object_labels == v.object_labels || (object_labels != null && v.object_labels != null && object_labels.equals(v.object_labels)))
+                && (getters == v.getters || (getters != null && v.getters != null && getters.equals(v.getters)))
+                && (setters == v.setters || (setters != null && v.setters != null && setters.equals(v.setters)))
+                && (excluded_strings == v.excluded_strings || (excluded_strings != null && v.excluded_strings != null && excluded_strings.equals(v.excluded_strings)))
+                && (included_strings == v.included_strings || (included_strings != null && v.included_strings != null && included_strings.equals(v.included_strings)))
+                && Objects.equals(functionPartitions, v.functionPartitions)
+                && Objects.equals(functionTypeSignatures, v.functionTypeSignatures);
     }
-
-//    /**
-//     * Returns a copy of this value where all parts that are also in the given value have been removed.
-//     * Note that the resulting value may be an over-approximation, for example if removing a single string from AnyString.
-//     */
-//    public Value remove(Value v) {
-//        if (v == this && !isPolymorphicOrUnknown())
-//            return makeNone();
-//        if (v.isPolymorphicOrUnknown() || isPolymorphicOrUnknown() || v.isNone())
-//            return this;
-//        Value r = new Value(this);
-//        if (r.object_labels != null && v.object_labels != null) {
-//            r.object_labels = newSet(r.object_labels);
-//            r.object_labels.removeAll(v.object_labels);
-//            if (r.object_labels.isEmpty())
-//                r.object_labels = null;
-//        }
-//        if (r.num != null && v.num != null && r.num == v.num)
-//            r.num = null;
-//        if (r.str != null && v.str != null && (r.flags & STR_PREFIX) == (v.flags & STR_PREFIX) && r.str.equals(v.str)) {
-//            r.str = null;
-//            r.flags &= ~STR_PREFIX;
-//        }
-//        if (r.str != null && (v.flags & (STR_UINT | STR_OTHERNUM | STR_IDENTIFIERPARTS | STR_OTHER)) == (STR_UINT | STR_OTHERNUM | STR_IDENTIFIERPARTS | STR_OTHER)) {
-//            r.str = null;
-//            r.flags &= ~STR_PREFIX;
-//        }
-//        if ((v.flags & (STR_IDENTIFIER | STR_IDENTIFIERPARTS)) != 0)
-//            r.flags &= ~STR_IDENTIFIER;
-//        r.flags &= ~(v.flags & (BOOL | NUM | UNDEF | NULL | STR_UINT | STR_OTHERNUM | STR_JSON | STR_IDENTIFIERPARTS | STR_OTHER));
-//        return canonicalize(r);
-//    }
 
     /**
      * Returns a description of the changes from the old value to this value.
@@ -1100,9 +1370,30 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     public void diff(Value old, StringBuilder b) {
         Value v = new Value(this);
         v.flags &= ~old.flags; // TODO: see Value.remove above (anyway, diff is only used for debug output)
-        if (v.object_labels != null && old.object_labels != null) {
+        if (v.object_labels != null) {
             v.object_labels = newSet(v.object_labels);
-            v.object_labels.removeAll(old.object_labels);
+            if (old.object_labels != null)
+                v.object_labels.removeAll(old.object_labels);
+        }
+        if (v.getters != null) {
+            v.getters = newSet(v.getters);
+            if (old.getters != null)
+                v.getters.removeAll(old.getters);
+        }
+        if (v.setters != null) {
+            v.setters = newSet(v.setters);
+            if (old.setters != null)
+                v.setters.removeAll(old.setters);
+        }
+        if (old.excluded_strings != null) {
+            v.excluded_strings = newSet(old.excluded_strings);
+            if (excluded_strings != null)
+                v.excluded_strings.removeAll(excluded_strings);
+        }
+        if (v.included_strings != null) {
+            v.included_strings = newSet(v.included_strings);
+            if (old.included_strings != null)
+                v.included_strings.removeAll(old.included_strings);
         }
         b.append(v);
     }
@@ -1116,12 +1407,18 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     }
 
     /**
-     * Returns the source locations of the objects in this value.
+     * Returns the source locations of the objects and symbols in this value.
      */
     public Set<SourceLocation> getObjectSourceLocations() {
         Set<SourceLocation> res = newSet();
         if (object_labels != null)
             for (ObjectLabel objlabel : object_labels)
+                res.add(objlabel.getSourceLocation());
+        if (getters != null)
+            for (ObjectLabel objlabel : getters)
+                res.add(objlabel.getSourceLocation());
+        if (setters != null)
+            for (ObjectLabel objlabel : setters)
                 res.add(objlabel.getSourceLocation());
         return res;
     }
@@ -1149,8 +1446,6 @@ public final class Value implements Undef, Null, Bool, Num, Str {
                 b.append("present");
             }
             b.append("])");
-//            if (var_summarized != null)
-//            b.append('<').append(var_summarized).append('>');    
             any = true;
         } else {
             if (isMaybeUndef()) {
@@ -1185,7 +1480,17 @@ public final class Value implements Undef, Null, Bool, Num, Str {
                 b.append("Num");
                 any = true;
             } else {
-                if (isMaybeNumUInt()) {
+                if (num == null && isMaybeZero() && !isMaybeNumUIntPos()) {
+                    if (any)
+                        b.append('|');
+                    b.append("Zero");
+                    any = true;
+                } else if (!isMaybeZero() && isMaybeNumUIntPos()) {
+                    if (any)
+                        b.append('|');
+                    b.append("UIntPos");
+                    any = true;
+                } else if (isMaybeNumUInt()) {
                     if (any)
                         b.append('|');
                     b.append("UInt");
@@ -1216,6 +1521,12 @@ public final class Value implements Undef, Null, Bool, Num, Str {
                     any = true;
                 }
             }
+            if (excluded_strings != null || included_strings != null) {
+                if (any)
+                    b.append('|');
+                b.append('(');
+                any = false;
+            }
             if (isMaybeAnyStr()) {
                 if (any)
                     b.append('|');
@@ -1231,20 +1542,19 @@ public final class Value implements Undef, Null, Bool, Num, Str {
                 if (isMaybeStrOtherNum()) {
                     if (any)
                         b.append('|');
-                    b.append("NotUIntStr"); // TODO: change to NotUIntNumStr
+                    b.append("NotUIntStr"); // TODO: change to OtherNumStr?
                     any = true;
                 }
-
                 if (isMaybeStrIdentifier()) {
                     if (any)
                         b.append('|');
                     b.append("IdentStr");
                     any = true;
                 }
-                if (isMaybeStrIdentifierParts()) {
+                if (isMaybeStrOtherIdentifierParts()) {
                     if (any)
                         b.append('|');
-                    b.append("IdentPartsStr");
+                    b.append("OtherIdentPartsStr");
                     any = true;
                 }
                 if (isMaybeStrOther()) {
@@ -1259,10 +1569,10 @@ public final class Value implements Undef, Null, Bool, Num, Str {
                     b.append("JSONStr");
                     any = true;
                 }
-                if (isMaybeStrPrefixedIdentifierParts()) {
+                if (isMaybeStrPrefix()) {
                     if (any)
                         b.append('|');
-                    b.append("PrefixIdentPartsStr[").append(Strings.escape(str)).append(']');
+                    b.append("PrefixStr[").append(Strings.escape(str)).append(']');
                     any = true;
                 } else if (str != null) {
                     if (any)
@@ -1271,10 +1581,30 @@ public final class Value implements Undef, Null, Bool, Num, Str {
                     any = true;
                 }
             }
+            if (excluded_strings != null || included_strings != null) {
+                b.append(')');
+                if (excluded_strings != null)
+                    b.append("\\{").append(excluded_strings.stream().sorted().map(s -> '"' + Strings.escape(s) + '"').collect(java.util.stream.Collectors.joining(","))).append("}");
+                if (included_strings != null)
+                    b.append("{").append(included_strings.stream().sorted().map(s -> '"' + Strings.escape(s) + '"').collect(java.util.stream.Collectors.joining(","))).append("}");
+                any = true;
+            }
             if (object_labels != null) {
                 if (any)
                     b.append('|');
                 b.append(object_labels);
+                any = true;
+            }
+            if (getters != null) {
+                if (any)
+                    b.append('|');
+                b.append("getter ").append(getters);
+                any = true;
+            }
+            if (setters != null) {
+                if (any)
+                    b.append('|');
+                b.append("setter ").append(setters);
                 any = true;
             }
             if (isMaybeAbsent()) {
@@ -1283,11 +1613,190 @@ public final class Value implements Undef, Null, Bool, Num, Str {
                 b.append("absent");
                 any = true;
             }
+            if (functionPartitions != null) {
+                if (any)
+                    b.append(',');
+                b.append("functionPartitions=").append(functionPartitions);
+                any = true;
+            }
+            if (functionTypeSignatures != null) {
+                if (any)
+                    b.append(',');
+                b.append("functionTypeSignatures=").append(functionTypeSignatures);
+                // any = true;
+            }
         }
         if (!any)
             b.append("<no value>");
 //         if (isMaybeModified())
 //         b.append("%");
+        return b.toString();
+    }
+
+    public String printFlags() {
+        StringBuilder b = new StringBuilder();
+        boolean any = false;
+        if ((flags & BOOL_TRUE) != 0) {
+//            if (any)
+//                b.append("|");
+            b.append("BOOL_TRUE");
+            any = true;
+        }
+        if ((flags & BOOL_FALSE) != 0) {
+            if (any)
+                b.append("|");
+            b.append("BOOL_FALSE");
+            any = true;
+        }
+        if ((flags & UNDEF) != 0) {
+            if (any)
+                b.append("|");
+            b.append("UNDEF");
+            any = true;
+        }
+        if ((flags & NULL) != 0) {
+            if (any)
+                b.append("|");
+            b.append("NULL");
+            any = true;
+        }
+        if ((flags & STR_UINT) != 0) {
+            if (any)
+                b.append("|");
+            b.append("STR_UINT");
+            any = true;
+        }
+        if ((flags & STR_OTHERNUM) != 0) {
+            if (any)
+                b.append("|");
+            b.append("STR_OTHERNUM");
+            any = true;
+        }
+        if ((flags & STR_PREFIX) != 0) {
+            if (any)
+                b.append("|");
+            b.append("STR_PREFIX");
+            any = true;
+        }
+        if ((flags & STR_OTHERIDENTIFIERPARTS) != 0) {
+            if (any)
+                b.append("|");
+            b.append("STR_IDENTIFIERPARTS"); // TODO: change to STR_OTHERIDENTIFIERPARTS and remove "else" below?
+            any = true;
+        } else if ((flags & STR_IDENTIFIER) != 0) {
+            if (any)
+                b.append("|");
+            b.append("STR_IDENTIFIER");
+            any = true;
+        }
+        if ((flags & STR_OTHER) != 0) {
+            if (any)
+                b.append("|");
+            b.append("STR_OTHER");
+            any = true;
+        }
+        if ((flags & STR_JSON) != 0) {
+            if (any)
+                b.append("|");
+            b.append("STR_JSON");
+            any = true;
+        }
+        if ((flags & NUM_NAN) != 0) {
+            if (any)
+                b.append("|");
+            b.append("NUM_NAN");
+            any = true;
+        }
+        if ((flags & NUM_INF) != 0) {
+            if (any)
+                b.append("|");
+            b.append("NUM_INF");
+            any = true;
+        }
+        if ((flags & NUM_UINT) != 0) {
+            if (any)
+                b.append("|");
+            b.append("NUM_UINT");
+            any = true;
+        }
+        if ((flags & NUM_OTHER) != 0) {
+            if (any)
+                b.append("|");
+            b.append("NUM_OTHER");
+            any = true;
+        }
+        if ((flags & ATTR_DONTENUM) != 0) {
+            if (any)
+                b.append("|");
+            b.append("ATTR_DONTENUM");
+            any = true;
+        }
+        if ((flags & ATTR_NOTDONTENUM) != 0) {
+            if (any)
+                b.append("|");
+            b.append("ATTR_NOTDONTENUM");
+            any = true;
+        }
+        if ((flags & ATTR_READONLY) != 0) {
+            if (any)
+                b.append("|");
+            b.append("ATTR_READONLY");
+            any = true;
+        }
+        if ((flags & ATTR_NOTREADONLY) != 0) {
+            if (any)
+                b.append("|");
+            b.append("ATTR_NOTREADONLY");
+            any = true;
+        }
+        if ((flags & ATTR_DONTDELETE) != 0) {
+            if (any)
+                b.append("|");
+            b.append("ATTR_DONTDELETE");
+            any = true;
+        }
+        if ((flags & ATTR_NOTDONTDELETE) != 0) {
+            if (any)
+                b.append("|");
+            b.append("ATTR_NOTDONTDELETE");
+            any = true;
+        }
+        if ((flags & MODIFIED) != 0) {
+            if (any)
+                b.append("|");
+            b.append("MODIFIED");
+            any = true;
+        }
+        if ((flags & ABSENT) != 0) {
+            if (any)
+                b.append("|");
+            b.append("ABSENT");
+            any = true;
+        }
+        if ((flags & PRESENT_DATA) != 0) {
+            if (any)
+                b.append("|");
+            b.append("PRESENT_DATA");
+            any = true;
+        }
+        if ((flags & PRESENT_ACCESSOR) != 0) {
+            if (any)
+                b.append("|");
+            b.append("PRESENT_ACCESSOR");
+            any = true;
+        }
+        if ((flags & UNKNOWN) != 0) {
+            if (any)
+                b.append("|");
+            b.append("UNKNOWN");
+            any = true;
+        }
+        if ((flags & EXTENDEDSCOPE) != 0) {
+            if (any)
+                b.append("|");
+            b.append("EXTENDEDSCOPE");
+//            any = true;
+        }
         return b.toString();
     }
 
@@ -1324,6 +1833,28 @@ public final class Value implements Undef, Null, Bool, Num, Str {
         return b.toString();
     }
 
+    /**
+     * Joins the meta-information from v into this value.
+     */
+    public Value joinMeta(Value v) {
+        Value r = new Value(this);
+        r.flags |= v.flags & META;
+        return canonicalize(r);
+    }
+
+    /**
+     * Joins the getters and setters from v into this value.
+     * Should not be called if this value already has getters or setters.
+     */
+    public Value joinGettersSetters(Value v) {
+        if (getters != null || setters != null)
+            throw new AnalysisException("Value already has getters/setters");
+        Value r = new Value(this);
+        r.getters = v.getters;
+        r.setters = v.setters;
+        return canonicalize(r);
+    }
+
     /* the Undef facet */
 
     @Override
@@ -1341,7 +1872,7 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     @Override
     public boolean isMaybeOtherThanUndef() {
         checkNotPolymorphicOrUnknown();
-        return (flags & (NULL | BOOL | NUM | STR)) != 0 || num != null || str != null || object_labels != null;
+        return (flags & (NULL | BOOL | NUM | STR)) != 0 || num != null || str != null || object_labels != null || getters != null || setters != null;
     }
 
     @Override
@@ -1401,7 +1932,7 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     @Override
     public boolean isMaybeOtherThanNull() {
         checkNotPolymorphicOrUnknown();
-        return (flags & (UNDEF | BOOL | NUM | STR)) != 0 || num != null || str != null || object_labels != null;
+        return (flags & (UNDEF | BOOL | NUM | STR)) != 0 || num != null || str != null || object_labels != null || getters != null || setters != null;
     }
 
     @Override
@@ -1437,7 +1968,7 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     public boolean isNullOrUndef() {
         checkNotPolymorphicOrUnknown();
         return (flags & (NULL | UNDEF)) != 0
-                && (flags & (NUM | STR | BOOL)) == 0 && num == null && str == null && object_labels == null;
+                && (flags & (NUM | STR | BOOL)) == 0 && num == null && str == null && object_labels == null && getters == null && setters == null;
     }
 
     /**
@@ -1506,7 +2037,7 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     @Override
     public boolean isMaybeOtherThanBool() {
         checkNotPolymorphicOrUnknown();
-        return (flags & (UNDEF | NULL | NUM | STR)) != 0 || num != null || str != null || object_labels != null;
+        return (flags & (UNDEF | NULL | NUM | STR)) != 0 || num != null || str != null || object_labels != null || getters != null || setters != null;
     }
 
     @Override
@@ -1549,6 +2080,14 @@ public final class Value implements Undef, Null, Bool, Num, Str {
             r.flags |= BOOL_TRUE;
         else
             r.flags |= BOOL_FALSE;
+        return canonicalize(r);
+    }
+
+    @Override
+    public Value restrictToNotBool() {
+        checkNotPolymorphicOrUnknown();
+        Value r = new Value(this);
+        r.flags &= ~BOOL;
         return canonicalize(r);
     }
 
@@ -1600,6 +2139,7 @@ public final class Value implements Undef, Null, Bool, Num, Str {
 
     /**
      * Constructs a value as a copy of this value but definitely not falsy.
+     * Absent is treated as falsy.
      */
     public Value restrictToTruthy() {
         checkNotPolymorphicOrUnknown();
@@ -1608,22 +2148,30 @@ public final class Value implements Undef, Null, Bool, Num, Str {
             r.str = null;
         if (r.num != null && Math.abs(r.num) == 0.0)
             r.num = null;
-        r.flags &= ~(BOOL_FALSE | NULL | UNDEF | NUM_NAN);
-        return canonicalize(r);
+        r.flags &= ~(BOOL_FALSE | NULL | UNDEF | NUM_NAN | NUM_ZERO | ABSENT);
+        if (r.isMaybeFuzzyStr())
+            return r.restrictToNotStrings(singleton(""));
+        else
+            return canonicalize(r);
     }
 
     /**
      * Constructs a value as a copy of this value but definitely not truthy.
+     * Absent is treated as not truthy.
      */
     public Value restrictToFalsy() {
         checkNotPolymorphicOrUnknown();
         Value r = new Value(this);
-        if ((r.flags & STR_PREFIX) != 0 || (r.str != null && !r.str.isEmpty()))
+        if (isMaybeStr(""))
+            r.str = "";
+        else
             r.str = null;
+        r.flags &= ~STR;
         if (r.num != null && Math.abs(r.num) != 0.0)
             r.num = null;
-        r.object_labels = null;
-        r.flags &= ~(BOOL_TRUE | STR_PREFIX);
+        r.object_labels = r.getters = r.setters = null;
+        r.flags &= ~(BOOL_TRUE | STR_PREFIX | (NUM & ~(NUM_ZERO | NUM_NAN)));
+        r.excluded_strings = r.included_strings = null;
         return canonicalize(r);
     }
 
@@ -1633,7 +2181,7 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     public Value restrictToStrBoolNum() {
         checkNotPolymorphicOrUnknown();
         Value r = new Value(this);
-        r.object_labels = null;
+        r.object_labels = r.getters = r.setters = null;
         r.flags &= STR | BOOL | NUM;
         return canonicalize(r);
     }
@@ -1644,6 +2192,12 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     public boolean isMaybeAnyNum() {
         checkNotPolymorphicOrUnknown();
         return (flags & NUM) == NUM;
+    }
+
+    @Override
+    public boolean isMaybeAnyNumNotNaNInf() {
+        checkNotPolymorphicOrUnknown();
+        return (flags & NUM) == (NUM & ~NUM_INF & ~NUM_NAN);
     }
 
     @Override
@@ -1689,6 +2243,28 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     }
 
     @Override
+    public boolean isMaybeNum(double num) {
+        checkNotPolymorphicOrUnknown();
+        if (this.num != null) {
+            return this.num == num;
+        } else if (Double.isInfinite(num)) {
+            return (flags & NUM_INF) != 0;
+        } else if (Double.isNaN(num)) {
+            return (flags & NUM_NAN) != 0;
+        } else if (isZero(num)) {
+            return (flags & NUM_ZERO) != 0;
+        } else if (isUInt32(num)) { // not zero due to the zero-check above
+            return (flags & NUM_UINT_POS) != 0;
+        } else {
+            return (flags & NUM_OTHER) != 0;
+        }
+    }
+
+    private boolean isZero(double num) {
+        return num == 0;
+    }
+
+    @Override
     public boolean isMaybeNumUInt() {
         checkNotPolymorphicOrUnknown();
         return (flags & NUM_UINT) != 0;
@@ -1703,13 +2279,13 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     @Override
     public boolean isMaybeOtherThanNum() {
         checkNotPolymorphicOrUnknown();
-        return ((flags & (UNDEF | NULL | BOOL | STR)) != 0) || str != null || object_labels != null;
+        return ((flags & (UNDEF | NULL | BOOL | STR)) != 0) || str != null || object_labels != null || getters != null || setters != null;
     }
 
     @Override
     public boolean isMaybeOtherThanNumUInt() {
         checkNotPolymorphicOrUnknown();
-        return ((flags & (UNDEF | NULL | BOOL | STR | NUM_INF | NUM_NAN | NUM_OTHER)) != 0) || str != null || object_labels != null;
+        return ((flags & (UNDEF | NULL | BOOL | STR | NUM_INF | NUM_NAN | NUM_OTHER)) != 0) || str != null || object_labels != null || getters != null || setters != null;
     }
 
     @Override
@@ -1738,7 +2314,7 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     @Override
     public Value joinAnyNumUInt() {
         checkNotPolymorphicOrUnknown();
-        if (isMaybeNumUInt())
+        if (isMaybeNumUIntPos() && isMaybeZero())
             return this;
         Value r = new Value(this);
         r.flags |= NUM_UINT;
@@ -1771,12 +2347,21 @@ public final class Value implements Undef, Null, Bool, Num, Str {
         return canonicalize(r);
     }
 
-    private static boolean checkUInt32(double v) {
-        return v >= 0 && v <= Integer.MAX_VALUE * 2.0 + 1 && (v % 1) == 0;
+    @Override
+    public Value restrictToNotInf() {
+        checkNotPolymorphicOrUnknown();
+        if (!isMaybeInf())
+            return this;
+        Value r = new Value(this);
+        r.flags &= ~NUM_INF;
+        return canonicalize(r);
     }
 
-    private static boolean isUInt32(double v) {
-        return !Double.isNaN(v) && !Double.isInfinite(v) && checkUInt32(v);
+    /**
+     * Checks whether the given number is a UInt32.
+     */
+    public static boolean isUInt32(double v) {
+        return !Double.isNaN(v) && !Double.isInfinite(v) && v >= 0 && v <= Integer.MAX_VALUE * 2.0 + 1 && (v % 1) == 0;
     }
 
     /**
@@ -1787,8 +2372,10 @@ public final class Value implements Undef, Null, Bool, Num, Str {
             flags |= NUM_NAN;
         else if (Double.isInfinite(v))
             flags |= NUM_INF;
+        else if (isZero(v))
+            flags |= NUM_ZERO;
         else if (isUInt32(v))
-            flags |= NUM_UINT;
+            flags |= NUM_UINT_POS; // not zero due to the zero-check above
         else
             flags |= NUM_OTHER;
     }
@@ -1798,7 +2385,7 @@ public final class Value implements Undef, Null, Bool, Num, Str {
         checkNotPolymorphicOrUnknown();
         if (Double.isNaN(v))
             return joinNumNaN();
-        if (num != null && num == v)
+        if (num != null && num.equals(v))
             return this;
         Value r = new Value(this);
         if (isNotNum())
@@ -1842,6 +2429,12 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     private static Value reallyMakeAnyUInt() {
         Value r = new Value();
         r.flags = NUM_UINT;
+        return canonicalize(r);
+    }
+
+    private static Value reallyMakeAnyUIntPos() {
+        Value r = new Value();
+        r.flags = NUM_UINT_POS;
         return canonicalize(r);
     }
 
@@ -1917,6 +2510,13 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     }
 
     /**
+     * Constructs the value describing any positive UInt number.
+     */
+    public static Value makeAnyNumUIntPos() {
+        return theNumUIntPos;
+    }
+
+    /**
      * Constructs the value describing any non-UInt, non-+/-Inf, non-NaN number.
      */
     public static Value makeAnyNumOther() {
@@ -1948,65 +2548,102 @@ public final class Value implements Undef, Null, Bool, Num, Str {
         return canonicalize(r);
     }
 
+    @Override
+    public Value restrictToNotNumUInt() {
+        checkNotPolymorphicOrUnknown();
+        Value r = new Value(this);
+        r.flags &= ~NUM_UINT;
+        return canonicalize(r);
+    }
+
+    @Override
+    public Value restrictToNotNumOther() {
+        checkNotPolymorphicOrUnknown();
+        Value r = new Value(this);
+        r.flags &= ~NUM_OTHER;
+        return canonicalize(r);
+    }
+
     /* the Str facet */
 
     @Override
     public boolean isMaybeAnyStr() {
         checkNotPolymorphicOrUnknown();
-        return (flags & (STR_UINT | STR_OTHERNUM | STR_IDENTIFIERPARTS | STR_OTHER)) == (STR_UINT | STR_OTHERNUM | STR_IDENTIFIERPARTS | STR_OTHER);
+        return (flags & (STR_OTHERNUM | STR_IDENTIFIERPARTS | STR_OTHER)) == (STR_OTHERNUM | STR_IDENTIFIERPARTS | STR_OTHER); // note: ignoring excluded_strings and included_strings, see javadoc
     }
 
     @Override
     public boolean isMaybeStrUInt() {
         checkNotPolymorphicOrUnknown();
-        return (flags & STR_UINT) != 0;
+        return (flags & STR_UINT) != 0; // note: ignoring excluded_strings and included_strings, see javadoc
     }
 
     @Override
     public boolean isMaybeStrSomeUInt() {
         checkNotPolymorphicOrUnknown();
-        return (flags & (STR_UINT | STR_IDENTIFIERPARTS)) != 0 || ((flags & STR_PREFIX) != 0 && Strings.isArrayIndex(str));
+        if (included_strings != null)
+            return included_strings.stream().anyMatch(Strings::isArrayIndex);
+        return isMaybeStrUInt() || (str != null && Strings.isArrayIndex(str));
+    }
+
+    @Override
+    public boolean isMaybeStrSomeNumeric() {
+        checkNotPolymorphicOrUnknown();
+        if (included_strings != null)
+            return included_strings.stream().anyMatch(Strings::isNumeric);
+        return isMaybeStrUInt() || isMaybeStrOtherNum() || (str != null && Strings.isNumeric(str));
     }
 
     @Override
     public boolean isMaybeStrSomeNonUInt() {
         checkNotPolymorphicOrUnknown();
-        return (flags & (STR_OTHERNUM | STR_PREFIX | STR_IDENTIFIER | STR_IDENTIFIERPARTS | STR_OTHER | STR_JSON)) != 0
+        if (included_strings != null)
+            return included_strings.stream().anyMatch(s -> !Strings.isArrayIndex(s));
+        return (flags & (STR_OTHERNUM | STR_PREFIX | STR_IDENTIFIER | STR_OTHERIDENTIFIERPARTS | STR_OTHER | STR_JSON)) != 0
                 || (str != null && !Strings.isArrayIndex(str));
+    }
+
+    @Override
+    public boolean isMaybeStrSomeNonNumeric() {
+        checkNotPolymorphicOrUnknown();
+        if (included_strings != null)
+            return included_strings.stream().anyMatch(s -> !Strings.isNumeric(s));
+        return (flags & (STR_PREFIX | STR_IDENTIFIER | STR_OTHERIDENTIFIERPARTS | STR_OTHER | STR_JSON)) != 0
+                || (str != null && !Strings.isNumeric(str));
     }
 
     @Override
     public boolean isMaybeStrOtherNum() {
         checkNotPolymorphicOrUnknown();
-        return (flags & STR_OTHERNUM) != 0;
+        return (flags & STR_OTHERNUM) != 0; // note: ignoring excluded_strings and included_strings, see javadoc
     }
 
     @Override
     public boolean isMaybeStrIdentifier() {
         checkNotPolymorphicOrUnknown();
-        return (flags & STR_IDENTIFIER) != 0;
+        return (flags & STR_IDENTIFIER) != 0; // note: ignoring excluded_strings and included_strings, see javadoc
     }
 
     @Override
-    public boolean isMaybeStrIdentifierParts() {
+    public boolean isMaybeStrOtherIdentifierParts() {
         checkNotPolymorphicOrUnknown();
-        return (flags & STR_IDENTIFIERPARTS) != 0;
+        return (flags & STR_OTHERIDENTIFIERPARTS) != 0; // note: ignoring excluded_strings and included_strings, see javadoc
     }
 
     @Override
-    public boolean isMaybeStrPrefixedIdentifierParts() {
+    public boolean isMaybeStrPrefix() {
         checkNotPolymorphicOrUnknown();
-        return (flags & STR_PREFIX) != 0;
+        return (flags & STR_PREFIX) != 0; // note: ignoring excluded_strings and included_strings, see javadoc
     }
 
     @Override
     public boolean isMaybeStrOther() {
         checkNotPolymorphicOrUnknown();
-        return (flags & STR_OTHER) != 0;
+        return (flags & STR_OTHER) != 0; // note: ignoring excluded_strings and included_strings, see javadoc
     }
 
     @Override
-    public boolean isMaybeStrJSON() { // FIXME: check STR_JSON, e.g. at join
+    public boolean isMaybeStrJSON() { // FIXME: rethink STR_JSON... (github #374)
         checkNotPolymorphicOrUnknown();
         return (flags & STR_JSON) != 0;
     }
@@ -2014,33 +2651,136 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     @Override
     public boolean isStrJSON() {
         checkNotPolymorphicOrUnknown();
-        return (flags & PRIMITIVE) == STR_JSON && str == null && num == null && object_labels == null;
+        return (flags & PRIMITIVE) == STR_JSON && str == null && num == null && object_labels == null && getters == null && setters == null;
     }
 
     @Override
-    public boolean isStrIdentifierOrIdentifierParts() {
+    public boolean isStrIdentifierParts() {
         checkNotPolymorphicOrUnknown();
-        return ((flags & PRIMITIVE) == STR_IDENTIFIER || (flags & PRIMITIVE) == STR_IDENTIFIERPARTS
-                || (str != null && Strings.isIdentifierParts(str))) && num == null && object_labels == null;
+        if (included_strings != null)
+            return included_strings.stream().allMatch(Strings::isIdentifierParts);
+        return (((flags & STR_IDENTIFIERPARTS) != 0 && (flags & PRIMITIVE & ~STR_IDENTIFIERPARTS) == 0)
+                || (str != null && Strings.isIdentifierParts(str))) && num == null && object_labels == null && getters == null && setters == null;
     }
 
     @Override
     public boolean isStrIdentifier() {
         checkNotPolymorphicOrUnknown();
+        if (included_strings != null)
+            return included_strings.stream().allMatch(Strings::isIdentifier);
         return ((flags & PRIMITIVE) == STR_IDENTIFIER
-                || (str != null && Strings.isIdentifier(str))) && num == null && object_labels == null;
+                || (str != null && Strings.isIdentifier(str))) && num == null && object_labels == null && getters == null && setters == null;
     }
 
     @Override
     public boolean isMaybeStrOnlyUInt() {
         checkNotPolymorphicOrUnknown();
-        return (flags & STR) == STR_UINT;
+        return (flags & STR) == STR_UINT; // note: ignoring excluded_strings and included_strings, see javadoc
     }
 
     @Override
     public boolean isMaybeSingleStr() {
         checkNotPolymorphicOrUnknown();
-        return str != null && !isMaybeStrPrefixedIdentifierParts();
+        return str != null && !isMaybeStrPrefix();
+    }
+
+    @Override
+    public boolean isMaybeSymbol() {
+        checkNotPolymorphicOrUnknown();
+        return object_labels != null && object_labels.stream().anyMatch(x -> x.getKind() == Kind.SYMBOL);
+    }
+
+    @Override
+    public boolean isMaybeSingleStrOrSymbol() {
+        checkNotPolymorphicOrUnknown();
+        if (isMaybeSingleStr() && !isMaybeSymbol())
+            return true;
+        return isNotStr() &&
+                (object_labels != null && object_labels.stream().filter(x -> x.getKind() == Kind.SYMBOL).count() == 1) &&
+                (object_labels != null && object_labels.stream().filter(x -> x.getKind() == Kind.SYMBOL && x.isSingleton()).count() == 1);
+    }
+
+    @Override
+    public boolean isMaybeFuzzyStrOrSymbol() {
+        checkNotPolymorphicOrUnknown();
+        return (!isNotStr() && isMaybeSymbol()) ||
+                isMaybeFuzzyStr() ||
+                (object_labels != null && object_labels.stream().filter(x -> x.getKind() == Kind.SYMBOL).count() > 1) ||
+                (object_labels != null && object_labels.stream().filter(x -> x.getKind() == Kind.SYMBOL && !x.isSingleton()).count() > 0);
+    }
+
+    public boolean isMaybeOtherThanSymbol() {
+        checkNotPolymorphicOrUnknown();
+        if (isMaybePrimitive() || isMaybeGetterOrSetter()) {
+            return true;
+        }
+        return object_labels != null && object_labels.stream().anyMatch(x -> x.getKind() != Kind.SYMBOL);
+    }
+
+    public boolean isMaybeOtherThanStrOrSymbol() {
+        checkNotPolymorphicOrUnknown();
+        if ((flags & (UNDEF | NULL | BOOL | NUM)) != 0 || num != null || getters != null || setters != null) {
+            return true;
+        }
+        return object_labels != null && object_labels.stream().anyMatch(x -> x.getKind() != Kind.SYMBOL);
+    }
+
+    /**
+     * Constructs a value as a copy of this value but definitely not a symbol.
+     */
+    public Value restrictToNotSymbol() {
+        if (object_labels == null)
+            return this;
+        Value r = new Value(this);
+        r.object_labels = newSet();
+        for (ObjectLabel objlabel : object_labels)
+            if (objlabel.getKind() != Kind.SYMBOL)
+                r.object_labels.add(objlabel);
+        if (r.object_labels.isEmpty())
+            r.object_labels = null;
+        return canonicalize(r);
+    }
+
+    /**
+     * Constructs a value as a copy of this value but definitely a symbol.
+     */
+    public Value restrictToSymbol() {
+        checkNotPolymorphicOrUnknown();
+        Value r = new Value(this);
+        r.flags &= ~PRIMITIVE;
+        r.num = null;
+        r.str = null;
+        r.getters = r.setters = null;
+        r.excluded_strings = r.included_strings = null;
+        r.object_labels = newSet();
+        if (object_labels != null)
+            for (ObjectLabel objlabel : object_labels)
+                if (objlabel.getKind() == Kind.SYMBOL)
+                    r.object_labels.add(objlabel);
+        if (r.object_labels.isEmpty())
+            r.object_labels = null;
+        return canonicalize(r);
+    }
+
+    /**
+     * Constructs a value as a copy of this value but definitely an object of the given kind.
+     */
+    public Value restrictToObjKind(ObjectLabel.Kind kind) {
+        checkNotPolymorphicOrUnknown();
+        Value r = new Value(this);
+        r.flags &= ~PRIMITIVE;
+        r.num = null;
+        r.str = null;
+        r.getters = r.setters = null;
+        r.excluded_strings = r.included_strings = null;
+        r.object_labels = newSet();
+        if (object_labels != null)
+            for (ObjectLabel objlabel : object_labels)
+                if (objlabel.getKind() == kind)
+                    r.object_labels.add(objlabel);
+        if (r.object_labels.isEmpty())
+            r.object_labels = null;
+        return canonicalize(r);
     }
 
     @Override
@@ -2052,16 +2792,16 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     @Override
     public String getStr() {
         checkNotPolymorphicOrUnknown();
-        if (isMaybeStrPrefixedIdentifierParts())
-            return null;
+        if (str == null || isMaybeStrPrefix())
+            throw new AnalysisException("Invoked getStr on a non-single string value");
         return str;
     }
 
     @Override
     public String getPrefix() {
         checkNotPolymorphicOrUnknown();
-        if (!isMaybeStrPrefixedIdentifierParts())
-            return null;
+        if (!isMaybeStrPrefix())
+            throw new AnalysisException("Invoked getPrefix on a non-prefix string value");
         return str;
     }
 
@@ -2074,7 +2814,7 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     @Override
     public boolean isMaybeOtherThanStr() {
         checkNotPolymorphicOrUnknown();
-        return (flags & (UNDEF | NULL | BOOL | NUM)) != 0 || num != null || object_labels != null;
+        return (flags & (UNDEF | NULL | BOOL | NUM)) != 0 || num != null || object_labels != null || getters != null || setters != null;
     }
 
     @Override
@@ -2083,10 +2823,32 @@ public final class Value implements Undef, Null, Bool, Num, Str {
         if (isMaybeAnyStr())
             return this;
         Value r = new Value(this);
-        r.flags |= STR_UINT | STR_OTHERNUM | STR_IDENTIFIERPARTS | STR_OTHER;
+        r.flags |= STR_OTHERNUM | STR_IDENTIFIERPARTS | STR_OTHER;
         r.flags &= ~STR_PREFIX;
         r.str = null;
+        r.excluded_strings = r.included_strings = null;
         return canonicalize(r);
+    }
+
+    private static Set<String> removeStringsIf(Set<String> ss, Predicate<String> p) {
+        if (ss != null) {
+            ss = newSet(ss);
+            ss.removeIf(p);
+            if (ss.isEmpty())
+                ss = null;
+        }
+        return ss;
+    }
+
+    private static void removeIncludedStringsIf(Value r, Predicate<String> p) {
+        if (r.included_strings != null) {
+            r.included_strings = removeStringsIf(r.included_strings, p);
+            if (r.included_strings == null) {
+                r.flags &= ~STR;
+                r.str = null;
+            }
+            r.fixSingletonIncluded();
+        }
     }
 
     @Override
@@ -2098,6 +2860,8 @@ public final class Value implements Undef, Null, Bool, Num, Str {
         r.flags |= STR_UINT;
         r.flags &= ~STR_PREFIX;
         r.str = null;
+        r.excluded_strings = removeStringsIf(r.excluded_strings, Strings::isArrayIndex);
+        r.included_strings = null;
         r.joinSingleStringOrPrefixString(this);
         return canonicalize(r);
     }
@@ -2111,6 +2875,8 @@ public final class Value implements Undef, Null, Bool, Num, Str {
         r.flags |= STR_OTHERNUM;
         r.flags &= ~STR_PREFIX;
         r.str = null;
+        r.excluded_strings = removeStringsIf(r.excluded_strings, Value::isStrOtherNum);
+        r.included_strings = null;
         r.joinSingleStringOrPrefixString(this);
         return canonicalize(r);
     }
@@ -2118,12 +2884,14 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     @Override
     public Value joinAnyStrIdentifier() {
         checkNotPolymorphicOrUnknown();
-        if (isMaybeStrIdentifier() || isMaybeStrIdentifierParts())
+        if (isMaybeStrIdentifier())
             return this;
         Value r = new Value(this);
         r.flags |= STR_IDENTIFIER;
         r.flags &= ~STR_PREFIX;
         r.str = null;
+        r.excluded_strings = removeStringsIf(r.excluded_strings, Strings::isIdentifier);
+        r.included_strings = null;
         r.joinSingleStringOrPrefixString(this);
         return canonicalize(r);
     }
@@ -2131,12 +2899,14 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     @Override
     public Value joinAnyStrIdentifierParts() {
         checkNotPolymorphicOrUnknown();
-        if (isMaybeStrIdentifierParts())
+        if ((flags & STR_IDENTIFIERPARTS) == STR_IDENTIFIERPARTS)
             return this;
         Value r = new Value(this);
         r.flags |= STR_IDENTIFIERPARTS;
-        r.flags &= ~(STR_IDENTIFIER | STR_PREFIX);
+        r.flags &= ~STR_PREFIX;
         r.str = null;
+        r.excluded_strings = removeStringsIf(r.excluded_strings, Strings::isIdentifierParts);
+        r.included_strings = null;
         r.joinSingleStringOrPrefixString(this);
         return canonicalize(r);
     }
@@ -2150,6 +2920,8 @@ public final class Value implements Undef, Null, Bool, Num, Str {
         r.flags |= STR_OTHER;
         r.flags &= ~STR_PREFIX;
         r.str = null;
+        r.excluded_strings = removeStringsIf(r.excluded_strings, s -> !Strings.isNumeric(s) && !Strings.isIdentifierParts(s));
+        r.included_strings = null;
         r.joinSingleStringOrPrefixString(this);
         return canonicalize(r);
     }
@@ -2160,6 +2932,7 @@ public final class Value implements Undef, Null, Bool, Num, Str {
         if (str != null && str.equals(s))
             return this;
         Value r = new Value(this);
+        r.excluded_strings = removeStringsIf(r.excluded_strings, s::equals);
         Value tmp = new Value();
         tmp.str = s;
         r.joinSingleStringOrPrefixString(tmp);
@@ -2167,11 +2940,15 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     }
 
     @Override
-    public Value joinPrefixedIdentifierParts(String s) {
+    public Value joinPrefix(String s) {
         checkNotPolymorphicOrUnknown();
-        if (isMaybeStrPrefixedIdentifierParts() && str.equals(s))
+        if (s.isEmpty())
+            throw new AnalysisException("Prefix string can't be empty");
+        if (isMaybeStrPrefix() && str.equals(s))
             return this;
         Value r = new Value(this);
+        r.excluded_strings = removeStringsIf(r.excluded_strings, s2 -> s2.startsWith(s));
+        r.included_strings = null;
         Value tmp = new Value();
         tmp.flags |= STR_PREFIX;
         tmp.str = s;
@@ -2190,33 +2967,42 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     private boolean joinSingleStringOrPrefixStringAsFuzzyNonPrefix(String s, boolean s_is_prefix) {
         int oldflags = flags;
         if (s_is_prefix) {
-            // s is a prefix string
-            if (Strings.isIdentifierAndNotPrefixOfReservedName(s)) {
-                // e.g. s is "foo" + identifier-parts
-                if ((flags & STR_IDENTIFIERPARTS) == 0)
-                    flags |= STR_IDENTIFIER;
-            } else if (Strings.isIdentifierParts(s)) {
-                // e.g. s is "12ab" + identifier-parts or "defau" + identifier-parts
-                flags = (flags | STR_IDENTIFIERPARTS) & ~STR_IDENTIFIER;
-            } else {
-                // s does not match identifier-parts nor uint
-                flags |= STR_OTHER;
-                if (Strings.isNumber(s) || "-Infinity".startsWith(s))
+            if (included_strings == null) {
+                // no knowledge about the suffix of a prefix: set all str-bits
+                flags |= STR_OTHERNUM | STR_IDENTIFIERPARTS | STR_OTHER;
+            } else { // if string set, we know all the suffixes, so we can make a precise join
+                if (included_strings.stream().anyMatch(Strings::isArrayIndex)) {
+                    flags |= STR_UINT;
+                }
+                if (included_strings.stream().filter(str -> !Strings.isArrayIndex(str)).anyMatch(Strings::isNumeric)) {
                     flags |= STR_OTHERNUM;
+                }
+                if (included_strings.stream().anyMatch(Strings::isIdentifier)) {
+                    flags |= STR_IDENTIFIER;
+                }
+                if (included_strings.stream()
+                        .filter(str -> !Strings.isIdentifier(str))
+                        .filter(str -> !Strings.isArrayIndex(str))
+                        .anyMatch(Strings::isIdentifierParts)) {
+                    flags |= STR_OTHERIDENTIFIERPARTS;
+                }
+                if (included_strings.stream().filter(str -> !Strings.isIdentifierParts(str)).anyMatch(str -> !Strings.isNumeric(str))) {
+                    flags |= STR_OTHER;
+                }
             }
         } else {
             // s is a single string
-            if (Strings.isArrayIndex(s))
+            if (Strings.isArrayIndex(s)) {
                 flags |= STR_UINT;
-            else if (Strings.isNumber(s))
+            } else if (Strings.isNumeric(s)) {
                 flags |= STR_OTHERNUM;
-            else if (Strings.isIdentifier(s)) {
-                if ((flags & STR_IDENTIFIERPARTS) == 0)
-                    flags |= STR_IDENTIFIER;
-            } else if (Strings.isIdentifierParts(s))
-                flags = (flags | STR_IDENTIFIERPARTS) & ~STR_IDENTIFIER;
-            else
+            } else if (Strings.isIdentifier(s)) {
+                flags |= STR_IDENTIFIER;
+            } else if (Strings.isOtherIdentifierParts(s)) {
+                flags |= STR_OTHERIDENTIFIERPARTS;
+            } else {
                 flags |= STR_OTHER;
+            }
         }
         return flags != oldflags;
     }
@@ -2224,72 +3010,45 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     /**
      * Joins the single string or prefix string part of the given value into this value.
      * No other parts of v are used.
-     * Also converts the existing single string or prefix string to a fuzzy value if necessary.
+     * Also converts the existing single string or prefix string to a fuzzy value
+     * if v is a non-prefix fuzzy string or a prefix string with no nontrivial shared prefix.
      *
      * @return true if this value is modified
      */
     private boolean joinSingleStringOrPrefixString(Value v) { // TODO: could be more precise in some cases...
+        // Note: join("xA", "xB") results in PREFIX("x"), but it could as well have resulted in IDENTSTR!
         boolean modified = false;
         boolean this_is_prefix = (flags & STR_PREFIX) != 0;
         boolean v_is_prefix = (v.flags & STR_PREFIX) != 0;
-        boolean switch_both_to_fuzzy = false;
         if (str != null)
             if (v.str != null) {
-                // both this and v are single/prefix strings
-                if (this_is_prefix)
-                    // this is a prefix string, v is a single/prefix string
-                    if (v.str.startsWith(str)) {
-                        if (!Strings.isIdentifierParts(v.str.substring(str.length()))) {
-                            // last part of v does not consist of identifier-parts, so switch to fuzzy
-                            switch_both_to_fuzzy = true;
-                        } // otherwise, v is subsumed by this, so do nothing
-                    } else {
-                        int i;
-                        for (i = 0; i < str.length() && i < v.str.length(); i++)
-                            if (str.charAt(i) != v.str.charAt(i))
-                                break;
-                        if (i > 0 && Strings.isIdentifierParts(str.substring(i)) && Strings.isIdentifierParts(v.str.substring(i))) {
-                            // nonempty common prefix, tails are identifier-parts, so truncate this
-                            str = str.substring(0, i);
-                            modified = true;
-                        } else {
-                            // no common prefix or tails are not identifier parts, so switch to fuzzy
-                            switch_both_to_fuzzy = true;
-                        }
-                    }
-                else if (v_is_prefix) {
-                    // this is a single string, v is a prefix string
-                    if (str.startsWith(v.str)) {
-                        if (!Strings.isIdentifierParts(str.substring(v.str.length()))) {
-                            // last part of this does not consist of identifier-parts, so switch to fuzzy
-                            switch_both_to_fuzzy = true;
-                        } else {
-                            // this is subsumed by v, so copy v to this
-                            str = v.str;
-                            flags |= STR_PREFIX;
-                            modified = true;
-                        }
-                    } else {
-                        int i;
-                        for (i = 0; i < str.length() && i < v.str.length(); i++)
-                            if (str.charAt(i) != v.str.charAt(i))
-                                break;
-                        if (i > 0 && Strings.isIdentifierParts(str.substring(i)) && Strings.isIdentifierParts(v.str.substring(i))) {
-                            // nonempty common prefix, tails are identifier-parts
-                            str = str.substring(0, i);
-                            flags |= STR_PREFIX;
-                            modified = true;
-                        } else {
-                            // no common prefix or tails are not identifier parts, so switch to fuzzy
-                            switch_both_to_fuzzy = true;
-                        }
-                    }
-                } else {
+                if (!this_is_prefix && !v_is_prefix) {
                     // both this and v are single strings
-                    if (!str.equals(v.str)) {
-                        // different single strings, so switch to fuzzy
-                        switch_both_to_fuzzy = true;
-                    } // otherwise, this and v are equal single strings, so do nothing
+                    if (str.equals(v.str)) {
+                        // same single string
+                        return false;
+                    } else if (!Options.get().isNoStringSets()) {
+                        // different single strings, and string sets enabled
+                        included_strings = newSet();
+                        included_strings.add(str);
+                        included_strings.add(v.str);
+                        modified = true;
+                    }
+                }
+                // both this and v are single/prefix strings
+                String sharedPrefix = Strings.getSharedPrefix(str, v.str);
+                if (sharedPrefix.isEmpty()) {
+                    // no nontrivial prefix, switch both to fuzzy
+                    String oldstr = str;
+                    str = null;
+                    flags &= ~STR_PREFIX;
+                    joinSingleStringOrPrefixStringAsFuzzyNonPrefix(v.str, v_is_prefix);
+                    joinSingleStringOrPrefixStringAsFuzzyNonPrefix(oldstr, this_is_prefix);
+                    modified = true;
+                } else {
+                    flags |= STR_PREFIX;
+                    modified |= !str.equals(v.str);
+                    str = sharedPrefix;
                 }
             } else {
                 // this is a single/prefix string, v is not a single/prefix string
@@ -2314,13 +3073,10 @@ public final class Value implements Undef, Null, Bool, Num, Str {
                 modified = joinSingleStringOrPrefixStringAsFuzzyNonPrefix(v.str, v_is_prefix);
             }
         } // otherwise, neither is a single/prefix string so do nothing
-        if (switch_both_to_fuzzy) {
-            String oldstr = str;
-            str = null;
-            flags &= ~STR_PREFIX;
-            joinSingleStringOrPrefixStringAsFuzzyNonPrefix(v.str, v_is_prefix);
-            joinSingleStringOrPrefixStringAsFuzzyNonPrefix(oldstr, this_is_prefix);
-            modified = true;
+        // if this has included_strings and v is a single string, then add it
+        if (included_strings != null && v.str != null && !v_is_prefix) {
+            included_strings = newSet(included_strings);
+            modified |= included_strings.add(v.str);
         }
         return modified;
     }
@@ -2328,30 +3084,39 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     @Override
     public boolean isMaybeStr(String s) {
         checkNotPolymorphicOrUnknown();
+        if (excluded_strings != null && excluded_strings.contains(s))
+            return false;
+        if (included_strings != null && !included_strings.contains(s)) {
+            return false;
+        }
+        return isMaybeStrIgnoreIncludedExcluded(s);
+    }
+
+    private boolean isMaybeStrIgnoreIncludedExcluded(String s) {
         if ((flags & STR_JSON) != 0)
             return true; // TODO: check that the string is really a JSON string? (true is a sound approximation)
         if (str != null) {
             if ((flags & STR_PREFIX) != 0)
-                return s.startsWith(str) && Strings.isIdentifierParts(s.substring(str.length())); // e.g. s="qwerty" matches this="qw"+idparts
+                return s.startsWith(str);
             else
                 return s.equals(str);
         } else if (Strings.isArrayIndex(s))
-            return (flags & (STR_UINT | STR_IDENTIFIERPARTS)) != 0;
+            return (flags & STR_UINT) != 0;
         else if (s.equals("Infinity") || s.equals("NaN"))
             return (flags & (STR_OTHERNUM | STR_IDENTIFIER)) != 0;
-        else if (Strings.isNumber(s))
+        else if (Strings.isNumeric(s))
             return (flags & STR_OTHERNUM) != 0;
         else if (Strings.isIdentifier(s))
-            return (flags & (STR_IDENTIFIER | STR_IDENTIFIERPARTS)) != 0;
+            return (flags & STR_IDENTIFIER) != 0;
         else if (Strings.isIdentifierParts(s))
-            return (flags & STR_IDENTIFIERPARTS) != 0;
+            return (flags & STR_OTHERIDENTIFIERPARTS) != 0;
         else
             return (flags & STR_OTHER) != 0;
     }
 
     private static Value reallyMakeAnyStr() {
         Value r = new Value();
-        r.flags |= STR_UINT | STR_OTHERNUM | STR_IDENTIFIERPARTS | STR_OTHER;
+        r.flags |= STR_OTHERNUM | STR_IDENTIFIERPARTS | STR_OTHER;
         return canonicalize(r);
     }
 
@@ -2361,9 +3126,33 @@ public final class Value implements Undef, Null, Bool, Num, Str {
         return canonicalize(r);
     }
 
+    private static Value reallyMakeAnyStrOtherNum() {
+        Value r = new Value();
+        r.flags |= STR_OTHERNUM;
+        return canonicalize(r);
+    }
+
+    private static Value reallyMakeAnyStrNumeric() {
+        Value r = new Value();
+        r.flags |= STR_UINT | STR_OTHERNUM;
+        return canonicalize(r);
+    }
+
+    private static Value reallyMakeAnyStrNotNumeric() {
+        Value r = new Value();
+        r.flags |= STR_IDENTIFIER | STR_OTHERIDENTIFIERPARTS | STR_OTHER;
+        return canonicalize(r);
+    }
+
     private static Value reallyMakeAnyStrNotUInt() {
         Value r = new Value();
-        r.flags |= STR_IDENTIFIER | STR_OTHER | STR_OTHERNUM;
+        r.flags |= STR_IDENTIFIER | STR_OTHERIDENTIFIERPARTS | STR_OTHER | STR_OTHERNUM;
+        return canonicalize(r);
+    }
+
+    private static Value reallyMakeAnyStrIdent() {
+        Value r = new Value();
+        r.flags |= STR_IDENTIFIER;
         return canonicalize(r);
     }
 
@@ -2382,10 +3171,38 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     }
 
     /**
+     * Constructs the value describing any string containing non-UInt32 numbers, including Infinity, -Infinity, and NaN.
+     */
+    public static Value makeAnyStrOtherNum() {
+        return theStrOtherNum;
+    }
+
+    /**
+     * Constructs the value describing any numeric string.
+     */
+    public static Value makeAnyStrNumeric() {
+        return theStrNumeric;
+    }
+
+    /**
      * Constructs the value describing any non-UInt string.
      */
     public static Value makeAnyStrNotUInt() {
         return theStrNotUInt;
+    }
+
+    /**
+     * Constructs the value describing any non-numeric string.
+     */
+    public static Value makeAnyStrNotNumeric() {
+        return theStrNotNumeric;
+    }
+
+    /**
+     * Constructs the value describing any identifier string.
+     */
+    public static Value makeAnyStrIdent() {
+        return theStrIdent;
     }
 
     private static Value reallyMakeJSONStr() {
@@ -2414,10 +3231,12 @@ public final class Value implements Undef, Null, Bool, Num, Str {
      * Constructs a temporary value describing the given string.
      * The object is not canonicalized and should therefore not be stored in abstract states.
      */
-    public static Str makeTemporaryStr(String s) {
+    public static Value makeTemporaryStr(String s) {
+        if (s == null)
+            throw new NullPointerException();
         Value r = new Value();
         r.str = s;
-        return r;
+        return r; // don't canonicalize here!
     }
 
     @Override
@@ -2426,6 +3245,42 @@ public final class Value implements Undef, Null, Bool, Num, Str {
         Value r = new Value();
         r.flags = flags & STR;
         r.str = str;
+        r.excluded_strings = excluded_strings;
+        r.included_strings = included_strings;
+        return canonicalize(r);
+    }
+
+    @Override
+    public Value restrictToStrNumeric() {
+        checkNotPolymorphicOrUnknown();
+        Value r = new Value();
+        if (included_strings != null) {
+            r.included_strings = included_strings.stream().filter(Strings::isNumeric).collect(Collectors.toSet());
+        }
+        r.flags = flags & (STR_OTHERNUM | STR_UINT);
+        if (isMaybeStrPrefix() && Strings.isNumeric(str)) {
+            r.flags |= STR_PREFIX;
+            r.str = str;
+        } else if (str != null && Strings.isNumeric(str))
+            r.str = str;
+        r.cleanupIncludedExcluded();
+        return canonicalize(r);
+    }
+
+    @Override
+    public Value restrictToStrNotNumeric() {
+        checkNotPolymorphicOrUnknown();
+        Value r = new Value();
+        if (included_strings != null) {
+            r.included_strings = included_strings.stream().filter(s -> !Strings.isNumeric(s)).collect(Collectors.toSet());
+        }
+        r.flags = flags & (STR & ~(STR_OTHERNUM | STR_UINT));
+        if (isMaybeStrPrefix()) {
+            r.flags |= STR_PREFIX;
+            r.str = str;
+        } else if (str != null && !Strings.isNumeric(str))
+            r.str = str;
+        r.cleanupIncludedExcluded();
         return canonicalize(r);
     }
 
@@ -2435,7 +3290,208 @@ public final class Value implements Undef, Null, Bool, Num, Str {
         Value r = new Value(this);
         r.flags &= ~STR;
         r.str = null;
+        r.excluded_strings = r.included_strings = null;
         return canonicalize(r);
+    }
+
+    @Override
+    public Value restrictToNotStrIdentifierParts() {
+        checkNotPolymorphicOrUnknown();
+        Value r = new Value(this);
+        r.flags &= ~STR_IDENTIFIERPARTS;
+        r.excluded_strings = removeStringsIf(r.excluded_strings, Strings::isIdentifierParts);
+        removeIncludedStringsIf(r, Strings::isIdentifierParts);
+        return canonicalize(r);
+    }
+
+    @Override
+    public Value restrictToNotStrPrefix() {
+        checkNotPolymorphicOrUnknown();
+        Value r = new Value(this);
+        if ((r.flags & STR_PREFIX) != 0) {
+            r.str = null;
+        }
+        r.flags &= ~STR_PREFIX;
+        r.excluded_strings = null;
+        if ((r.flags & STR) == 0)
+            r.included_strings = null;
+        return canonicalize(r);
+    }
+
+    @Override
+    public Value restrictToNotStrUInt() {
+        checkNotPolymorphicOrUnknown();
+        Value r = new Value(this);
+        r.flags &= ~STR_UINT;
+        r.excluded_strings = removeStringsIf(r.excluded_strings, Strings::isArrayIndex);
+        removeIncludedStringsIf(r, Strings::isArrayIndex);
+        return canonicalize(r);
+    }
+
+    @Override
+    public Value restrictToNotStrOtherNum() {
+        checkNotPolymorphicOrUnknown();
+        Value r = new Value(this);
+        r.flags &= ~STR_OTHERNUM;
+        r.excluded_strings = removeStringsIf(r.excluded_strings, Value::isStrOtherNum);
+        removeIncludedStringsIf(r, Value::isStrOtherNum);
+        return canonicalize(r);
+    }
+
+    private static boolean isStrOtherNum(String s) {
+        return (Strings.isNumeric(s) && !Strings.isArrayIndex(s)) || s.equals("Infinity") || s.equals("-Infinity") || s.equals("NaN");
+    }
+
+//    @Override
+//    public boolean isStrDisjoint(Str other) {
+//        if (Options.get().isDebugOrTestEnabled()) {
+//            if (isMaybeOtherThanStr() || other.isMaybeOtherThanStr()) {
+//                throw new AnalysisException(String.format("Expects String-only values, got (%s, %s)", this, other));
+//            }
+//        }
+//        return (this.mustOnlyBeIdentifierCharacters() && other.mustContainNonIdentifierCharacters()) ||
+//                (this.mustContainNonIdentifierCharacters() && other.mustOnlyBeIdentifierCharacters()); // TODO: add more cases ...
+//    }
+
+    @Override
+    public boolean isStrMayContainSubstring(Str other) {
+        if (Options.get().isDebugOrTestEnabled()) {
+            if (isMaybeOtherThanStr() || other.isMaybeOtherThanStr()) {
+                throw new AnalysisException(String.format("Expects String-only values, got (%s, %s)", this, other));
+            }
+        }
+        return !this.mustOnlyBeIdentifierCharacters() || !other.mustContainNonIdentifierCharacters(); // TODO: add more cases ...
+    }
+
+    @Override
+    public boolean mustContainNonIdentifierCharacters() {
+        return isMaybeSingleStr() && !Strings.isIdentifierParts(getStr()); // TODO: add more cases ...
+    }
+
+    @Override
+    public boolean mustOnlyBeIdentifierCharacters() {
+        return isStrIdentifierParts(); // TODO: add more cases?
+    }
+
+    @Override
+    public Set<String> getExcludedStrings() {
+        return excluded_strings;
+    }
+
+    @Override
+    public Value restrictToNotStrings(Set<String> strings) {
+        checkNotPolymorphicOrUnknown();
+        if (Options.get().isNoStringSets() || isNotStr())
+            return this;
+        strings = strings.stream().filter(this::isMaybeStr).collect(Collectors.toSet());
+        if (strings.isEmpty())
+            return this;
+        Value v = new Value(this);
+        if (str != null && !isMaybeStrPrefix()) {
+            // single string
+            if (strings.contains(str))
+                v.str = null;
+        } else if (v.included_strings != null) {
+            // fuzzy, with included strings
+            v.included_strings = newSet(v.included_strings);
+            v.included_strings.removeAll(strings);
+            if (v.included_strings.isEmpty()) {
+                v.included_strings = null;
+                v.flags &= ~STR;
+                v.str = null;
+            } else
+                v.fixSingletonIncluded();
+        } else {
+            // fuzzy, without explicitly included strings
+            v.excluded_strings = newSet(strings);
+            if (excluded_strings != null)
+                v.excluded_strings.addAll(excluded_strings);
+        }
+        return canonicalize(v);
+    }
+
+    /**
+     * Constructs a value that is any string except for the provided collection of strings.
+     * (Used by ReaGenT.)
+     */
+    public static Value makeAnyStrExcluding(Collection<String> strings) {
+        Value r = new Value(makeAnyStr());
+        r.excluded_strings = newSet();
+        r.excluded_strings.addAll(strings);
+        return canonicalize(r);
+    }
+
+    /**
+     * Converts a singleton included_strings into an ordinary singleton string.
+     */
+    private void fixSingletonIncluded() {
+        if (included_strings != null && included_strings.size() == 1) {
+            str = included_strings.iterator().next();
+            included_strings = null;
+            flags &= ~STR;
+        }
+    }
+
+    @Override
+    public Value forgetExcludedIncludedStrings() {
+        checkNotPolymorphicOrUnknown();
+        if (excluded_strings == null && included_strings == null) {
+            return this;
+        }
+        Value r = new Value(this);
+        r.excluded_strings = r.included_strings = null;
+        return canonicalize(r);
+    }
+
+//    public Value removeStringsAndSymbols(Set<PKey> stringssymbols) {
+//        checkNotPolymorphicOrUnknown();
+//        Set<String> ss = stringssymbols.stream().filter(x -> x instanceof PKey.StringPKey).map(x -> ((PKey.StringPKey)x).getStr()).collect(Collectors.toSet());
+//        Value r = excludeStrings(ss);
+//        Set<ObjectLabel> syms = stringssymbols.stream().filter(x -> x instanceof PKey.SymbolPKey).map(x -> ((PKey.SymbolPKey)x).getObjectLabel()).collect(Collectors.toSet());
+//        if (isMaybeSymbol() && !syms.isEmpty()) {
+//            r.object_labels = newSet(r.object_labels);
+//            r.object_labels.removeAll(syms);
+//        }
+//        return canonicalize(r);
+//    }
+
+    /**
+     * Constructs a new value representing the given strings.
+     */
+    public static Value makeStrings(Collection<String> strings) {
+        Value r = new Value(join(strings.stream().map(Value::makeStr).collect(Collectors.toSet())));
+        if (!Options.get().isNoStringSets() && r.isMaybeFuzzyStr())
+            r.included_strings = newSet(strings);
+        return canonicalize(r);
+    }
+
+    /**
+     * Constructs a new value representing the given strings and symbols.
+     */
+    public static Value makeStringsAndSymbols(Collection<PKey> properties) {
+        Value rSymb = new Value(join(properties.stream().map(PKey::toValue).collect(Collectors.toSet())));
+        Value rStr = makeStrings(properties.stream().filter(x -> x instanceof PKey.StringPKey).map(x -> ((PKey.StringPKey) x).getStr()).collect(Collectors.toList()));
+        return rSymb.join(rStr);
+    }
+
+    @Override
+    public Set<String> getIncludedStrings() {
+        return included_strings;
+    }
+
+    @Override
+    public boolean isMaybeAllKnownStr() {
+        return (isMaybeSingleStr() || included_strings != null);
+    }
+
+    @Override
+    public Set<String> getAllKnownStr() {
+        if (isMaybeSingleStr())
+            return singleton(str);
+        else if (included_strings != null)
+            return included_strings;
+        else
+            throw new AnalysisException("Getting known strings from a value with not all known strings");
     }
 
     /* object labels */
@@ -2450,6 +3506,17 @@ public final class Value implements Undef, Null, Bool, Num, Str {
         r.object_labels = newSet();
         r.object_labels.add(v);
         return canonicalize(r);
+    }
+
+    /**
+     * Constructs the value describing the given symbol object label.
+     */
+    public static Value makeSymbol(ObjectLabel v) {
+        if (v == null)
+            throw new NullPointerException();
+        if (v.getKind() != Kind.SYMBOL)
+            throw new AnalysisException("Creating symbol value with a non-symbol");
+        return Value.makeObject(v);
     }
 
     /**
@@ -2479,36 +3546,129 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     }
 
     /**
-     * Constructs a value as a copy of this value but only with object values.
+     * Constructs a value as a copy of this value but only with non-symbol object values.
      */
-    public Value restrictToObject() {
+    public Value restrictToNonSymbolObject() {
         checkNotPolymorphicOrUnknown();
-        if (!isMaybePrimitive())
+        if (!isMaybePrimitiveOrSymbol() && !isMaybeGetterOrSetter())
             return this;
         Value r = new Value(this);
         r.flags &= ~PRIMITIVE;
         r.num = null;
         r.str = null;
+        r.getters = r.setters = null;
+        r.excluded_strings = r.included_strings = null;
+        r.object_labels = newSet();
+        if (object_labels != null)
+            for (ObjectLabel objlabel : object_labels)
+                if (objlabel.getKind() != Kind.SYMBOL)
+                    r.object_labels.add(objlabel);
+        if (r.object_labels.isEmpty())
+            r.object_labels = null;
         return canonicalize(r);
     }
 
     /**
-     * Constructs a value as a copy of this value but only with non-object values.
-     * Unknown and polymorphic values are returned unmodified.
+     * Constructs a value as a copy of this value but only with values with typeof "object".
+     */
+    public Value restrictToTypeofObject() {
+        checkNotPolymorphicOrUnknown();
+        Value r = new Value(this);
+        r.flags &= (~PRIMITIVE) | NULL;
+        r.num = null;
+        r.str = null;
+        r.getters = r.setters = null;
+        r.excluded_strings = r.included_strings = null;
+        r.object_labels = newSet();
+        if (object_labels != null)
+            for (ObjectLabel objlabel : object_labels)
+                if (objlabel.getKind() != Kind.FUNCTION && objlabel.getKind() != Kind.SYMBOL)
+                    r.object_labels.add(objlabel);
+        if (r.object_labels.isEmpty())
+            r.object_labels = null;
+        return canonicalize(r);
+    }
+
+    /**
+     * Constructs a value as a copy of this value but only with values that do not have typeof "object".
+     */
+    public Value restrictToNotTypeofObject() {
+        checkNotPolymorphicOrUnknown();
+        Value r = new Value(this);
+        r.flags &= ~NULL;
+        r.object_labels = newSet();
+        if (object_labels != null)
+            for (ObjectLabel objlabel : object_labels)
+                if (objlabel.getKind() == Kind.FUNCTION || objlabel.getKind() == Kind.SYMBOL)
+                    r.object_labels.add(objlabel);
+        if (r.object_labels.isEmpty())
+            r.object_labels = null;
+        return canonicalize(r);
+    }
+
+    /**
+     * Constructs a value as a copy of this value but only with functions.
+     */
+    public Value restrictToFunction() {
+        checkNotPolymorphicOrUnknown();
+        Value r = new Value(this);
+        r.flags &= ~PRIMITIVE;
+        r.num = null;
+        r.str = null;
+        r.excluded_strings = r.included_strings = null;
+        r.object_labels = newSet();
+        r.getters = r.setters = null;
+        if (object_labels != null)
+            for (ObjectLabel objlabel : object_labels)
+                if (objlabel.getKind() == Kind.FUNCTION)
+                    r.object_labels.add(objlabel);
+        if (r.object_labels.isEmpty())
+            r.object_labels = null;
+        return canonicalize(r);
+    }
+
+    /**
+     * Constructs a value as a copy of this value but only with non-functions.
+     */
+    public Value restrictToNotFunction() {
+        checkNotPolymorphicOrUnknown();
+        Value r = new Value(this);
+        r.object_labels = newSet();
+        if (object_labels != null)
+            for (ObjectLabel objlabel : object_labels)
+                if (objlabel.getKind() != Kind.FUNCTION)
+                    r.object_labels.add(objlabel);
+        if (r.object_labels.isEmpty())
+            r.object_labels = null;
+        return canonicalize(r);
+    }
+
+    /**
+     * Constructs a value as a copy of this value but only with non-object values. (Symbols are not objects.)
+     * Unknown, polymorphic values, and getters/setters are returned unmodified.
      */
     public Value restrictToNotObject() {
         if (object_labels == null)
             return this;
         Value r = new Value(this);
-        r.object_labels = null;
+        r.object_labels = newSet();
+        if (object_labels != null)
+            for (ObjectLabel objlabel : object_labels)
+                if (objlabel.getKind() == Kind.SYMBOL)
+                    r.object_labels.add(objlabel);
+        if (r.object_labels.isEmpty())
+            r.object_labels = null;
         return canonicalize(r);
     }
 
     /**
      * Constructs a value as a copy of this value but with the given object labels removed.
+     *
+     * @throws AnalysisException if the value contains getters or setters.
      */
     public Value removeObjects(Set<ObjectLabel> objs) {
         checkNotPolymorphicOrUnknown();
+        checkNoGettersSetters();
         if (object_labels == null)
             return this;
         Value r = new Value(this);
@@ -2520,19 +3680,68 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     }
 
     /**
-     * Constructs a value as a copy of this value but with object labels summarized.
-     * If s is null or the value is unknown or polymorphic, this value is returned instead.
+     * Constructs a value as a copy of this value but with only the given object labels.
      */
-    public Value summarize(Summarized s) {
-        if (s == null || isUnknown() || isPolymorphic())
-            return this;
-        Set<ObjectLabel> ss = s.summarize(getObjectLabels());
-        if (ss.equals(getObjectLabels()))
+    public Value restrictToObject(Collection<ObjectLabel> objs) {
+        checkNotPolymorphicOrUnknown();
+        if (object_labels == null)
             return this;
         Value r = new Value(this);
-        if (ss.isEmpty())
+        r.flags &= ~PRIMITIVE;
+        r.num = null;
+        r.str = null;
+        r.excluded_strings = r.included_strings = null;
+        r.object_labels = newSet(object_labels);
+        r.object_labels.retainAll(objs);
+        if (r.object_labels.isEmpty())
+            r.object_labels = null;
+        return canonicalize(r);
+    }
+
+    /**
+     * Converts the object labels in this value into getters.
+     */
+    public Value makeGetter() {
+        Value r = new Value(this);
+        r.getters = object_labels;
+        r.object_labels = null;
+        return canonicalize(r);
+    }
+
+    /**
+     * Converts the object labels in this value into setters.
+     */
+    public Value makeSetter() {
+        Value r = new Value(this);
+        r.setters = object_labels;
+        r.object_labels = null;
+        return canonicalize(r);
+    }
+
+    /**
+     * Constructs a value as a copy of this value but with object labels renamed.
+     * If s is null or the value is unknown or polymorphic, this value is returned instead.
+     */
+    public Value rename(Renamings s) {
+        if (s == null || isUnknown() || isPolymorphic())
+            return this;
+        Set<ObjectLabel> ss = s.rename(object_labels);
+        Set<ObjectLabel> ss_getters = s.rename(getters);
+        Set<ObjectLabel> ss_setters = s.rename(setters);
+        if ((ss == null || ss.equals(object_labels))
+                && (ss_getters == null || ss_getters.equals(getters))
+                && (ss_setters == null || ss_setters.equals(setters)))
+            return this;
+        Value r = new Value(this);
+        if (ss != null && ss.isEmpty())
             ss = null;
         r.object_labels = ss;
+        if (ss_getters != null && ss_getters.isEmpty())
+            ss_getters = null;
+        r.getters = ss_getters;
+        if (ss_setters != null && ss_setters.isEmpty())
+            ss_setters = null;
+        r.setters = ss_setters;
         r.flags |= MODIFIED;
         return canonicalize(r);
     }
@@ -2543,16 +3752,38 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     public boolean isMaybePresent() {
         checkNotUnknown();
         if (isPolymorphic())
-            return (flags & PRESENT) != 0;
+            return (flags & (PRESENT_DATA | PRESENT_ACCESSOR)) != 0;
+        else
+            return (flags & PRIMITIVE) != 0 || num != null || str != null || object_labels != null || getters != null || setters != null;
+    }
+
+    /**
+     * Returns true if this value is maybe present as a data property.
+     */
+    public boolean isMaybePresentData() {
+        checkNotUnknown();
+        if (isPolymorphic())
+            return (flags & PRESENT_DATA) != 0;
         else
             return (flags & PRIMITIVE) != 0 || num != null || str != null || object_labels != null;
+    }
+
+    /**
+     * Returns true if this value is maybe present as a getter/setter property.
+     */
+    public boolean isMaybePresentAccessor() {
+        checkNotUnknown();
+        if (isPolymorphic())
+            return (flags & PRESENT_ACCESSOR) != 0;
+        else
+            return getters != null || setters != null;
     }
 
     /**
      * Returns true if this value is maybe present in the polymorphic part.
      */
     public boolean isMaybePolymorphicPresent() {
-        return (flags & PRESENT) != 0;
+        return (flags & (PRESENT_DATA | PRESENT_ACCESSOR)) != 0;
     }
 
     /**
@@ -2568,6 +3799,14 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     public boolean isNotPresent() {
         checkNotUnknown();
         return !isMaybePresent();
+    }
+
+    /**
+     * Returns true if this value is definitely not present and not absent.
+     */
+    public boolean isNotPresentNotAbsent() {
+        checkNotUnknown();
+        return !isMaybeAbsent() && !isMaybePresent();
     }
 
     /**
@@ -2594,19 +3833,43 @@ public final class Value implements Undef, Null, Bool, Num, Str {
      */
     public boolean isMaybeObject() {
         checkNotPolymorphicOrUnknown();
+        return object_labels != null && object_labels.stream().anyMatch(x -> x.getKind() != Kind.SYMBOL);
+    }
+
+    /**
+     * Returns true if this value maybe represents an object or a symbol.
+     */
+    public boolean isMaybeObjectOrSymbol() {
+        checkNotPolymorphicOrUnknown();
         return object_labels != null;
     }
 
     /**
-     * Returns true if this value maybe represents something that isn't a object.
+     * Returns true if this value maybe represents a getter.
      */
-    public boolean isMaybeOtherThanObject() {
+    public boolean isMaybeGetter() {
         checkNotPolymorphicOrUnknown();
-        return (flags & (NULL | UNDEF | BOOL | NUM | STR)) != 0 || num != null || str != null;
+        return getters != null;
     }
 
     /**
-     * Returns true if this value may be a non-object, including undefined and null.
+     * Returns true if this value maybe represents a setter.
+     */
+    public boolean isMaybeSetter() {
+        checkNotPolymorphicOrUnknown();
+        return setters != null;
+    }
+
+    /**
+     * Returns true if this value maybe represents a getter or setter.
+     */
+    public boolean isMaybeGetterOrSetter() {
+        checkNotPolymorphicOrUnknown();
+        return getters != null || setters != null;
+    }
+
+    /**
+     * Returns true if this value may be a primitive, including undefined, null.
      */
     public boolean isMaybePrimitive() {
         checkNotPolymorphicOrUnknown();
@@ -2614,8 +3877,16 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     }
 
     /**
-     * Returns the (immutable) set of object labels.
+     * Returns true if this value may be a non-object, including undefined, null, and symbols.
+     */
+    public boolean isMaybePrimitiveOrSymbol() {
+        return isMaybePrimitive() || isMaybeSymbol();
+    }
+
+    /**
+     * Returns the (immutable) set of object labels (including symbols).
      * Returns the empty set for polymorphic and 'unknown' values.
+     * Getters and setters are ignored (see {@link #getAllObjectLabels()}).
      */
     public Set<ObjectLabel> getObjectLabels() {
         if (object_labels == null)
@@ -2623,6 +3894,66 @@ public final class Value implements Undef, Null, Bool, Num, Str {
         if (Options.get().isDebugOrTestEnabled())
             return Collections.unmodifiableSet(object_labels);
         return object_labels;
+    }
+
+    /**
+     * Returns the (immutable) set of object labels.
+     * Returns the empty set for polymorphic and 'unknown' values.
+     * Getters and setters are included (see {@link #getObjectLabels()}).
+     */
+    public Set<ObjectLabel> getAllObjectLabels() {
+        if (object_labels == null && getters == null && setters == null)
+            return Collections.emptySet();
+        if (getters == null && setters == null)
+            return getObjectLabels();
+        Set<ObjectLabel> s = newSet();
+        if (object_labels != null)
+            s.addAll(object_labels);
+        if (getters != null)
+            s.addAll(getters);
+        if (setters != null)
+            s.addAll(setters);
+        if (Options.get().isDebugOrTestEnabled())
+            return Collections.unmodifiableSet(s);
+        return s;
+    }
+
+    /**
+     * Returns the (immutable) set of object labels representing symbols.
+     */
+    @Override
+    public Set<ObjectLabel> getSymbols() {
+        if (object_labels == null)
+            return Collections.emptySet();
+        Set<ObjectLabel> s = newSet();
+        for (ObjectLabel objlabel : object_labels)
+            if (objlabel.getKind() == Kind.SYMBOL)
+                s.add(objlabel);
+        return s;
+    }
+
+    /**
+     * Returns the (immutable) set of getters.
+     * Returns the empty set for polymorphic and 'unknown' values.
+     */
+    public Set<ObjectLabel> getGetters() {
+        if (getters == null)
+            return Collections.emptySet();
+        if (Options.get().isDebugOrTestEnabled())
+            return Collections.unmodifiableSet(getters);
+        return getters;
+    }
+
+    /**
+     * Returns the (immutable) set of setters.
+     * Returns the empty set for polymorphic and 'unknown' values.
+     */
+    public Set<ObjectLabel> getSetters() {
+        if (setters == null)
+            return Collections.emptySet();
+        if (Options.get().isDebugOrTestEnabled())
+            return Collections.unmodifiableSet(setters);
+        return setters;
     }
 
     /**
@@ -2634,41 +3965,71 @@ public final class Value implements Undef, Null, Bool, Num, Str {
     public Value replaceObjectLabel(ObjectLabel oldlabel, ObjectLabel newlabel) {
         if (oldlabel.equals(newlabel))
             throw new AnalysisException("Equal object labels not expected");
-        if (object_labels == null || !object_labels.contains(oldlabel))
+        if ((object_labels == null || !object_labels.contains(oldlabel)) &&
+                (getters == null || !getters.contains(oldlabel)) &&
+                (setters == null || !setters.contains(oldlabel)))
             return this;
-        Set<ObjectLabel> newobjlabels = newSet(object_labels);
-        newobjlabels.remove(oldlabel);
-        newobjlabels.add(newlabel);
         Value r = new Value(this);
-        r.object_labels = newobjlabels;
+        if (object_labels != null) {
+            Set<ObjectLabel> newobjlabels = newSet(object_labels);
+            newobjlabels.remove(oldlabel);
+            newobjlabels.add(newlabel);
+            r.object_labels = newobjlabels;
+        }
+        if (getters != null) {
+            Set<ObjectLabel> newgetters = newSet(getters);
+            newgetters.remove(oldlabel);
+            newgetters.add(newlabel);
+            r.getters = newgetters;
+        }
+        if (setters != null) {
+            Set<ObjectLabel> newsetters = newSet(setters);
+            newsetters.remove(oldlabel);
+            newsetters.add(newlabel);
+            r.setters = newsetters;
+        }
         return canonicalize(r);
     }
 
-    /**
-     * Returns a copy of this value where the object labels have been replaced according to the given map.
-     * Does not change modified flags. Object labels not in the key set of the map are unchanged.
-     *
-     * @param m A map between old object labels and new object labels.
-     * @return A copy of the old value with the object labels replaced according to the map.
-     */
-    public Value replaceObjectLabels(Map<ObjectLabel, ObjectLabel> m) {
-        if (isPolymorphic()) {
-            PropertyReference pr = Renaming.apply(m, var);
-            if (pr.getObjectLabel().equals(var.getObjectLabel()))
-                return this;
-            Value r = new Value(this);
-            r.var = pr;
-            return canonicalize(r);
-        }
-        if (object_labels == null || m.isEmpty())
-            return this;
-        Set<ObjectLabel> newobjlabels = newSet();
-        for (ObjectLabel objlabel : object_labels)
-            newobjlabels.add(Renaming.apply(m, objlabel));
-        Value r = new Value(this);
-        r.object_labels = newobjlabels;
-        return canonicalize(r);
-    }
+//    /**
+//     * Returns a copy of this value where the object labels have been replaced according to the given map.
+//     * Does not change modified flags. Object labels not in the key set of the map are unchanged.
+//     *
+//     * @param m A map between old object labels and new object labels.
+//     * @return A copy of the old value with the object labels replaced according to the map.
+//    */
+//    public Value replaceObjectLabels(Map<ObjectLabel, ObjectLabel> m) {
+//        if (isPolymorphic()) {
+//            ObjectProperty pr = Renaming.apply(m, var);
+//            if (pr.getObjectLabel().equals(var.getObjectLabel()))
+//                return this;
+//            Value r = new Value(this);
+//            r.var = pr;
+//            return canonicalize(r);
+//        }
+//        if ((object_labels == null && getters == null && setters == null) || m.isEmpty())
+//            return this;
+//        Value r = new Value(this);
+//        if (object_labels != null) {
+//            Set<ObjectLabel> newobjlabels = newSet();
+//            for (ObjectLabel objlabel : object_labels)
+//                newobjlabels.add(Renaming.apply(m, objlabel));
+//            r.object_labels = newobjlabels;
+//        }
+//        if (getters != null) {
+//            Set<ObjectLabel> newgetters = newSet();
+//            for (ObjectLabel objlabel : getters)
+//                newgetters.add(Renaming.apply(m, objlabel));
+//            r.getters = newgetters;
+//        }
+//        if (setters != null) {
+//            Set<ObjectLabel> newsetters = newSet();
+//            for (ObjectLabel objlabel : setters)
+//                newsetters.add(Renaming.apply(m, objlabel));
+//            r.setters = newsetters;
+//        }
+//        return canonicalize(r);
+//    }
 
     /**
      * Checks that this value is non-empty (or polymorphic).
@@ -2679,7 +4040,7 @@ public final class Value implements Undef, Null, Bool, Num, Str {
         checkNotUnknown();
         if (isPolymorphic())
             return;
-        if ((flags & PRIMITIVE) == 0 && num == null && str == null && object_labels == null
+        if ((flags & PRIMITIVE) == 0 && num == null && str == null && object_labels == null && getters == null && setters == null
                 && !Options.get().isPropagateDeadFlow())
             throw new AnalysisException("Empty value");
     }
@@ -2735,6 +4096,10 @@ public final class Value implements Undef, Null, Bool, Num, Str {
             if (is_other)
                 c++;
         }
+        if (getters != null)
+            c++;
+        if (setters != null)
+            c++;
         if (c == 0 && (isMaybeNull() || isMaybeUndef())) {
             c = 1;
         }
@@ -2752,6 +4117,7 @@ public final class Value implements Undef, Null, Bool, Num, Str {
         r.flags &= ATTR | ABSENT | UNKNOWN;
         if (!isUnknown() && isMaybePresent())
             r.flags |= UNDEF; // just a dummy value, to satisfy the representation invariant for PRESENT
+        r.excluded_strings = r.included_strings = null;
         return canonicalize(r);
     }
 
@@ -2760,7 +4126,7 @@ public final class Value implements Undef, Null, Bool, Num, Str {
      */
     public Value restrictToNonAttributes() {
         Value r = new Value(this);
-        r.flags &= ~(PROPERTYDATA | ABSENT | PRESENT);
+        r.flags &= ~(PROPERTYDATA | ABSENT | PRESENT_DATA | PRESENT_ACCESSOR);
         return canonicalize(r);
     }
 
@@ -2769,10 +4135,10 @@ public final class Value implements Undef, Null, Bool, Num, Str {
      */
     public Value replaceValue(Value v) {
         Value r = new Value(v);
-        r.flags &= ~(PROPERTYDATA | ABSENT | PRESENT);
+        r.flags &= ~(PROPERTYDATA | ABSENT | PRESENT_DATA | PRESENT_ACCESSOR);
         r.flags |= flags & (PROPERTYDATA | ABSENT);
-        if (r.var != null && (flags & PRESENT) != 0)
-            r.flags |= PRESENT;
+        if (r.var != null)
+            r.flags |= flags & (PRESENT_DATA | PRESENT_ACCESSOR);
         return canonicalize(r);
     }
 
@@ -2826,10 +4192,511 @@ public final class Value implements Undef, Null, Bool, Num, Str {
 
     /**
      * Returns true if this value contains the given object label.
+     *
+     * @throws AnalysisException if the value contains getters or setters.
      */
     public boolean containsObjectLabel(ObjectLabel objlabel) {
-        if (object_labels == null)
-            return false;
-        return object_labels.contains(objlabel);
+        return (object_labels != null && object_labels.contains(objlabel)) ||
+                (getters != null && getters.contains(objlabel)) ||
+                (setters != null && setters.contains(objlabel));
+    }
+
+    @Override
+    public Value restrictToNotNumZero() {
+        checkNotPolymorphicOrUnknown();
+        if (!isMaybeZero()) {
+            return this;
+        }
+        Value r = new Value(this);
+        if (r.num != null && isZero(r.num)) {
+            r.num = null;
+        }
+        r.flags &= ~NUM_ZERO;
+        return canonicalize(r);
+    }
+
+    @Override
+    public boolean isMaybeZero() {
+        checkNotPolymorphicOrUnknown();
+        if (num != null && isZero(num)) {
+            return true;
+        }
+        return (flags & NUM_ZERO) != 0;
+    }
+
+    @Override
+    public boolean isMaybeNumUIntPos() {
+        checkNotPolymorphicOrUnknown();
+        return (flags & NUM_UINT_POS) != 0;
+    }
+
+    @Override
+    public boolean isMaybeSameNumber(Value v) {
+        checkNotPolymorphicOrUnknown();
+        if (num != null) {
+            return v.isMaybeNum(num);
+        }
+        if (v.num != null) {
+            return isMaybeNum(v.num);
+        }
+        return (flags & v.flags & NUM) != 0;
+    }
+
+    @Override
+    public boolean isMaybeSameNumberWhenNegated(Value v) {
+        checkNotPolymorphicOrUnknown();
+        if (num != null) {
+            return v.isMaybeNum(-num);
+        }
+        if (v.num != null) {
+            return isMaybeNum(-v.num);
+        }
+        boolean maybePos = (flags & NUM_UINT_POS) != 0;
+        boolean maybeNeg = (flags & NUM_OTHER) != 0;
+        boolean maybeZero = (flags & NUM_ZERO) != 0;
+
+        boolean v_maybeNeg = (v.flags & NUM_OTHER) != 0;
+        boolean v_maybePos = (v.flags & NUM_UINT_POS) != 0;
+        boolean v_maybeZero = (v.flags & NUM_ZERO) != 0;
+
+        boolean maybePosNeg = maybePos && v_maybeNeg;
+        boolean maybeNegPos = maybeNeg && v_maybePos;
+        boolean maybeZeroZero = maybeZero && v_maybeZero;
+        return maybePosNeg || maybeNegPos || maybeZeroZero;
+    }
+
+    @Override
+    public Value restrictToNotNumInf() {
+        checkNotPolymorphicOrUnknown();
+        if (!isMaybeInf())
+            return this;
+        Value r = new Value(this);
+        r.flags &= ~NUM_INF;
+        return canonicalize(r);
+    }
+
+    /**
+     * Returns a value that models a safe approximation of the intersection of this value and the given value, using strict equality.
+     * Models the 'true' branch of if(...===...){...}else{...}.
+     */
+    public Value restrictToStrictEquals(Value v) {
+        checkNotPolymorphicOrUnknown();
+        if (v.getters != null)
+            return this; // getters could return anything, so must keep everything to remain safe
+        Value r = new Value(this);
+        // handle booleans and null
+        r.flags &= v.flags | ~(BOOL | NULL);
+        // handle undefined and absent
+        if ((v.flags & (UNDEF | ABSENT)) == 0) // absent treated as undefined here
+            r.flags &= ~(UNDEF | ABSENT); // if v is neither undefined nor absent, then the same holds for the result
+        // handle numbers
+        if (isMaybeSingleNum()) {
+            if (!v.isMaybeNum(num))
+                r.num = null;
+        } else { // this is fuzzy number (or not a number)
+            if (v.isMaybeSingleNum()) {
+                if (isMaybeNum(v.num))
+                    r.num = v.num;
+                r.flags &= ~NUM;
+            } else {
+                r.flags &= v.flags | ~NUM;
+            }
+        }
+        // handle strings
+        if (isMaybeSingleStr()) {
+            // this is single string
+            if (!v.isMaybeStr(str))
+                r.str = null;
+        } else if (v.isMaybeSingleStr()) {
+            // this is fuzzy string (or not a string), v is single string
+            if (isMaybeStr(v.str))
+                r.str = v.str;
+            else
+                r.str = null;
+            r.flags &= ~STR;
+            r.included_strings = r.excluded_strings = null;
+        } else {
+            // both are fuzzy string (or not string)
+            if (included_strings != null || v.included_strings != null) {
+                if (included_strings != null) {
+                    r.included_strings = newSet(r.included_strings);
+                    if (v.included_strings != null) {
+                        // both are included_strings
+                        r.included_strings.retainAll(v.included_strings);
+                    } else {
+                        // this is included_strings, v isn't
+                        r.included_strings.removeIf(s -> !v.isMaybeStr(s));
+                    }
+                } else {
+                    // this is not included_strings, but v is
+                    r.included_strings = newSet(v.included_strings);
+                    r.included_strings.removeIf(s -> !isMaybeStr(s));
+                }
+                r.excluded_strings = null;
+                r.str = null;
+                r.flags &= ~STR;
+                r.included_strings.forEach(s -> r.joinSingleStringOrPrefixStringAsFuzzyNonPrefix(s, false));
+                r.fixSingletonIncluded();
+                if (r.included_strings != null && r.included_strings.isEmpty())
+                    r.included_strings = null;
+            } else {
+                if ((flags & STR_JSON) != 0 || (v.flags & STR_JSON) != 0) {
+                    // TODO: handle JSON strings?
+                } else if ((flags & STR_PREFIX) != 0 || (v.flags & STR_PREFIX) != 0) {
+                    if ((flags & STR_PREFIX) != 0 && (v.flags & STR_PREFIX) != 0) {
+                        // both are prefix strings
+                        String p;
+                        if (str.startsWith(v.str))
+                            p = str;
+                        else if (v.str.startsWith(str))
+                            p = v.str;
+                        else
+                            p = null;
+                        r.flags &= ~STR;
+                        if (p != null) {
+                            // one is prefix of the other, take the longest
+                            r.str = p;
+                            r.flags |= STR_PREFIX;
+                        } else {
+                            // incompatible prefixes
+                            r.str = null;
+                        }
+                    } else if ((flags & STR_PREFIX) != 0) {
+                        // this is prefix string, v isn't
+                        if (!(((v.flags & STR_UINT) != 0 && Strings.isArrayIndex(str)) ||
+                                ((v.flags & STR_OTHERNUM) != 0 && !Strings.containsNonNumberCharacters(str)) ||
+                                ((v.flags & STR_IDENTIFIER) != 0 && Strings.isIdentifierParts(str)) ||
+                                ((v.flags & STR_OTHERIDENTIFIERPARTS) != 0 && Strings.isOtherIdentifierParts(str)) ||
+                                ((v.flags & STR_OTHER) != 0 && (Strings.containsNonNumberCharacters(str) || !Strings.isIdentifierParts(str))))) {
+                            // incompatible
+                            r.flags &= ~STR;
+                            r.str = null;
+                        }
+                    } else {
+                        // v is prefix string, this isn't
+                        if ((flags & (STR_OTHERNUM | STR_IDENTIFIERPARTS | STR_OTHER)) == (STR_OTHERNUM | STR_IDENTIFIERPARTS | STR_OTHER)) {
+                            // this is Str
+                            r.flags &= ~STR;
+                            r.flags = STR_PREFIX;
+                            r.str = v.str;
+                        } else {
+                            if (!Strings.isArrayIndex(v.str))
+                                r.flags &= ~STR_UINT; // can't be UINT if the prefix string must begin with a non-array-index number
+                            if (Strings.containsNonNumberCharacters(v.str))
+                                r.flags &= ~STR_OTHERNUM; // can't be OTHERHUM if the prefix string contains non-number chars
+                            if (!Strings.isIdentifierParts(v.str))
+                                r.flags &= ~(STR_IDENTIFIER | STR_OTHERIDENTIFIERPARTS); // can't be IDENTIFIER or OTHERIDENTIFIERPARTS if the prefix string contains non-identifier-parts chars
+                        }
+                    }
+                } else {
+                    // both are fuzzy (or not string) and not JSON nor prefix: intersect the STR flags
+                    r.flags &= v.flags | ~STR;
+                }
+                if (v.excluded_strings != null) {
+                    // v has excluded string, so add them to r
+                    if (r.excluded_strings != null)
+                        r.excluded_strings = newSet(r.excluded_strings);
+                    else
+                        r.excluded_strings = newSet();
+                    r.excluded_strings.addAll(v.excluded_strings);
+                }
+                if (r.excluded_strings != null) {
+                    // remove excluded strings that don't match any of the STR flags
+                    r.excluded_strings = r.excluded_strings.stream().filter(r::isMaybeStrIgnoreIncludedExcluded).collect(Collectors.toSet());
+                    if (r.excluded_strings.isEmpty())
+                        r.excluded_strings = null;
+                }
+            }
+        }
+        // handle objects and symbols
+        if (v.object_labels == null)
+            r.object_labels = null;
+        else if (r.object_labels != null) {
+            r.object_labels = newSet(r.object_labels);
+            r.object_labels.retainAll(v.object_labels);
+            if (r.object_labels.isEmpty())
+                r.object_labels = null;
+        }
+        return canonicalize(r);
+    }
+
+    /**
+     * Returns a value that models a safe approximation of this value minus the given value, using strict equality.
+     * Models the 'false' branch of if(...===...){...}else{...}.
+     */
+    public Value restrictToStrictNotEquals(Value v) {
+        checkNotPolymorphicOrUnknown();
+        if (v.isMaybeFuzzyStr() || v.isMaybeFuzzyNum() || (v.object_labels != null && (v.object_labels.size() > 1 || !v.object_labels.iterator().next().isSingleton())))
+            return this; // v is not a single concrete value, so can't restrict anything
+        boolean vIsUndefOrAbsent = v.isMaybeUndef() || v.isMaybeAbsent();
+        boolean vIsNull = v.isMaybeNull();
+        boolean vIsTrue = v.isMaybeTrue();
+        boolean vIsFalse = v.isMaybeFalse();
+        boolean vIsString = !v.isNotStr();
+        boolean vIsNumber = !v.isNotNum();
+        boolean vIsObjectOrSymbol = v.object_labels != null;
+        if ((vIsUndefOrAbsent ? 1 : 0) +
+                (vIsNull ? 1 : 0) +
+                (vIsTrue ? 1 : 0) +
+                (vIsFalse ? 1 : 0) +
+                (vIsString ? 1 : 0) +
+                (vIsNumber ? 1 : 0) +
+                (vIsObjectOrSymbol ? 1 : 0) != 1)
+            return this; // v is not a single value, so can't restrict anything
+        if (vIsString) {
+            return restrictToNotStrings(Collections.singleton(v.getStr()));
+        } else {
+            Value r = new Value(this);
+            if (vIsUndefOrAbsent)
+                r.flags &= ~(UNDEF | ABSENT);
+            else if (vIsNull)
+                r.flags &= ~NULL;
+            else if (vIsTrue)
+                r.flags &= ~BOOL_TRUE;
+            else if (vIsFalse)
+                r.flags &= ~BOOL_FALSE;
+            else if (vIsNumber) {
+                Double vnum = v.getNum();
+                if (r.num != null && r.num.equals(vnum) && !Double.isNaN(vnum)) // note: NaN !== NaN
+                    r.num = null;
+                // TODO: could also handle NUM_ZERO and NUM_NAN (but treated as fuzzy by isMaybeFuzzyNum above)
+            } else if (r.object_labels != null) { // vIsObjectOrSymbol must be true here, and there can be only one object label
+                r.object_labels = newSet(r.object_labels);
+                r.object_labels.remove(v.object_labels.iterator().next());
+                if (r.object_labels.isEmpty())
+                    r.object_labels = null;
+            }
+            return canonicalize(r);
+        }
+    }
+
+    /**
+     * Returns a value that models a safe approximation of the intersection of this value and the given value, using loose equality.
+     * Models the 'true' branch of if(...==...){...}else{...}.
+     */
+    public Value restrictToLooseEquals(Value v) {
+        if (v.object_labels != null)
+            return this; // just give up (object could be equal to anything)
+        Value r = new Value(this);
+        if (included_strings != null || v.included_strings != null) {
+            if (included_strings != null) {
+                r.included_strings = newSet(r.included_strings);
+                if (v.included_strings != null) {
+                    // both are included_strings
+                    r.included_strings.retainAll(v.included_strings);
+                } else {
+                    // this is included_strings, v isn't
+                    r.included_strings.removeIf(s -> !v.isMaybeStr(s));
+                }
+            } else {
+                // this is not included_strings, but v is
+                r.included_strings = newSet(v.included_strings);
+                r.included_strings.removeIf(s -> !isMaybeStr(s));
+            }
+            r.excluded_strings = null;
+        } else {
+            boolean vIsNotUndefAbsentOrNull = !(v.isMaybeUndef() || v.isMaybeAbsent() || v.isMaybeNull()); // treated the same, so group together
+            boolean vIsNotTrue = !v.isMaybeTrue();
+            boolean vIsNotFalse = !v.isMaybeFalse();
+            boolean vIsNotNumber = v.isNotNum();
+            boolean vIsNotString = v.isNotStr();
+            boolean vIsNotZero = !v.isMaybeZero();
+            boolean vIsNotEmptyString = !v.isMaybeStr("");
+            boolean vIsNotNumericString;
+            Double vNumericStringNumber = null;
+            if (v.isMaybeSingleStr()) {
+                try {
+                    vNumericStringNumber = Double.parseDouble(v.str.trim());
+                    vIsNotNumericString = false;
+                } catch (NumberFormatException e) {
+                    vIsNotNumericString = true;
+                }
+            } else if (v.isMaybeFuzzyStr()) {
+                vIsNotNumericString = false; // TODO: consider flags?
+            } else {
+                vIsNotNumericString = true;
+            }
+            boolean thisIsNotNumericString;
+            if (isMaybeSingleStr()) {
+                try {
+                    Double.parseDouble(str.trim());
+                    thisIsNotNumericString = false;
+                } catch (NumberFormatException e) {
+                    thisIsNotNumericString = true;
+                }
+            } else if (isMaybeFuzzyStr()) {
+                thisIsNotNumericString = false; // TODO: consider flags?
+            } else {
+                thisIsNotNumericString = true;
+            }
+            boolean vIsNotNumericStringZero = vNumericStringNumber != null && vNumericStringNumber != 0;
+            // remove undef, absent, and null if v is definitely not undef, absent, or null
+            if (vIsNotUndefAbsentOrNull) {
+                r.flags &= ~(UNDEF | ABSENT | NULL);
+            }
+            // remove true if v is definitely not true
+            if (vIsNotTrue) {
+                r.flags &= ~BOOL_TRUE;
+            }
+            // remove all strings if v is definitely not a string, a number, or false
+            if (vIsNotString && vIsNotNumber && vIsNotFalse) {
+                r.flags &= ~STR;
+                r.str = null;
+                r.included_strings = r.excluded_strings = null;
+            }
+            // remove all numbers if v is definitely not a number, false, the empty string, or a numeric string
+            if (vIsNotNumber && vIsNotFalse && vIsNotEmptyString && vIsNotNumericString) {
+                r.flags &= ~NUM;
+                r.num = null;
+            }
+            // remove 0, false, "", "  0.0 ", etc. if v is definitely not 0, false, "", or "  0.0 ", etc.
+            if (vIsNotZero && vIsNotFalse && vIsNotEmptyString && vIsNotNumericStringZero) {
+                r.flags &= ~(BOOL_FALSE | NUM_ZERO);
+                if (r.num != null && r.num == 0)
+                    r.num = null;
+                r.removeIncludedAddExcludedString("");
+                r.removeIncludedAddExcludedString("0"); // could also exclude "0.0", "  -0 ", etc.
+            }
+            // remove non-zero number if v is definitely not that number or a string that is coerced to that number
+            if (r.num != null && r.num != 0 && !v.isMaybeNum(r.num) && vNumericStringNumber != null && vNumericStringNumber.doubleValue() != r.num.doubleValue()) {
+                r.num = null;
+            }
+            // remove non-empty string if v is definitely not that string or a number that is coerced to that string
+            if (isMaybeSingleStr() && !str.isEmpty() && !v.isMaybeStr(str) && (vIsNotNumber || thisIsNotNumericString)) {
+                r.str = null;
+            }
+        }
+        r.cleanupIncludedExcluded();
+        return canonicalize(r);
+    }
+
+    /**
+     * Returns a value that models a safe approximation of this value minus the given value, using loose equality.
+     * Models the 'false' branch of if(...==...){...}else{...}.
+     */
+    public Value restrictToLooseNotEquals(Value v) {
+        if (v.isMaybeFuzzyStr() || v.isMaybeFuzzyNum() || v.object_labels != null) // TODO: NaN is a treated as a fuzzy num, so can't restrict NaN here (although NaN is not loosely equal to itself)
+            return this; // v is fuzzy or object, just give up (object could be equal to anything)
+        boolean vIsUndefOrAbsentOrNull = v.isMaybeUndef() || v.isMaybeAbsent() || v.isMaybeNull(); // treated the same, so group together
+        boolean vIsTrue = v.isMaybeTrue();
+        boolean vIsFalse = v.isMaybeFalse();
+        boolean vIsString = !v.isNotStr();
+        boolean vIsNumber = !v.isNotNum();
+        if (((vIsUndefOrAbsentOrNull) ? 1 : 0) +
+                (vIsTrue ? 1 : 0) +
+                (vIsFalse ? 1 : 0) +
+                (vIsString ? 1 : 0) +
+                (vIsNumber ? 1 : 0) != 1)
+            return this; // v is not a single concrete primitive value, so give up
+        boolean vIsNumberZero = vIsNumber && v.num == 0; // includes -0
+        Double vNumberIfStringNumeric;
+        try {
+            if (vIsString)
+                vNumberIfStringNumeric = Double.parseDouble(v.str.trim());
+            else
+                vNumberIfStringNumeric = null;
+        } catch (NumberFormatException e) {
+            vNumberIfStringNumeric = null;
+        }
+        Double thisNumberIfStringNumeric;
+        try {
+            if (isMaybeSingleStr())
+                thisNumberIfStringNumeric = Double.parseDouble(str.trim());
+            else
+                thisNumberIfStringNumeric = null;
+        } catch (NumberFormatException e) {
+            thisNumberIfStringNumeric = null;
+        }
+        boolean vIsStringZero = vNumberIfStringNumeric != null && vNumberIfStringNumeric == 0; // includes -0
+        boolean vIsStringEmpty = vIsString && v.str.trim().isEmpty();
+        Value r = new Value(this);
+        if (vIsUndefOrAbsentOrNull) {
+            // can't be undef, absent, or null
+            r.flags &= ~(UNDEF | ABSENT | NULL);
+        } else if (vIsTrue) {
+            // can't be true
+            r.flags &= ~BOOL_TRUE;
+        } else if (vIsNumberZero || vIsFalse) {
+            // can't be 0, false, "", "  0.0 ", etc.
+            if (r.num != null && r.num == 0)
+                r.num = null;
+            r.flags &= ~(NUM_ZERO | BOOL_FALSE);
+            if (thisNumberIfStringNumeric != null && thisNumberIfStringNumeric == 0)
+                r.str = null;
+            r.removeIncludedAddExcludedString("");
+            r.removeIncludedAddExcludedString("0"); // could also exclude "0.0", "  -0 ", etc.
+        } else if (vIsNumber) {
+            // can't be that (non-zero) number, also not as string
+            if (r.num != null && r.num.doubleValue() == v.num.doubleValue()) // using == to handle +/- 0 correctly
+                r.num = null;
+            if (thisNumberIfStringNumeric != null && v.num != null && thisNumberIfStringNumeric.doubleValue() == v.num.doubleValue())
+                r.str = null;
+            if (v.num != null)
+                r.removeIncludedAddExcludedString(Double.toString(v.num));
+        } else if (vIsStringZero || vIsStringEmpty) {
+            // can't be 0, false, or that string
+            if (r.num != null && r.num == 0)
+                r.num = null;
+            r.flags &= ~(NUM_ZERO | BOOL_FALSE);
+            if (r.isMaybeSingleStr() && r.str.equals(v.str))
+                r.str = null;
+            r.removeIncludedAddExcludedString(v.str);
+        } else { // vIsString must be true
+            // can't be that (non-zero, non-empty) string, also not as number
+            if (r.isMaybeSingleStr() && r.str.equals(v.str))
+                r.str = null;
+            if (vNumberIfStringNumeric != null && r.num != null && vNumberIfStringNumeric.doubleValue() == r.num.doubleValue())
+                r.num = null;
+            r.removeIncludedAddExcludedString(v.str);
+        }
+        r.cleanupIncludedExcluded();
+        return canonicalize(r);
+    }
+
+    private void cleanupIncludedExcluded() {
+        if (included_strings != null) {
+            if (!isMaybeStrPrefix()) {
+                // clean up flags according to included_strings
+                flags &= ~STR;
+                excluded_strings = null;
+                included_strings.forEach(s -> joinSingleStringOrPrefixStringAsFuzzyNonPrefix(s, false));
+            }
+            fixSingletonIncluded();
+            if (included_strings != null && included_strings.isEmpty())
+                included_strings = null;
+        }
+        if (excluded_strings != null) {
+            // remove excluded strings that don't match any of the STR flags
+            excluded_strings = excluded_strings.stream().filter(this::isMaybeStrIgnoreIncludedExcluded).collect(Collectors.toSet());
+            if (isMaybeSingleStr() && excluded_strings.contains(str)) {
+                excluded_strings.remove(str);
+                str = null;
+            }
+            if (excluded_strings.isEmpty())
+                excluded_strings = null;
+        }
+    }
+
+    private void removeIncludedAddExcludedString(String s) {
+        if (included_strings != null) {
+            included_strings = newSet(included_strings);
+            included_strings.remove(s);
+            fixSingletonIncluded();
+            if (included_strings != null && included_strings.isEmpty())
+                included_strings = null;
+        } else {
+            if (excluded_strings == null)
+                excluded_strings = newSet();
+            else
+                excluded_strings = newSet(excluded_strings);
+            excluded_strings.add(s);
+        }
+    }
+
+    /**
+     * Applies the given function to this value.
+     */
+    public Value applyFunction(Function<Value, Value> func) {
+        return func.apply(this);
     }
 }

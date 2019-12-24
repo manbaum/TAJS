@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,21 +16,21 @@
 
 package dk.brics.tajs.analysis.js;
 
+import dk.brics.tajs.analysis.AsyncEvents;
 import dk.brics.tajs.analysis.Conversion;
 import dk.brics.tajs.analysis.Exceptions;
 import dk.brics.tajs.analysis.FunctionCalls;
 import dk.brics.tajs.analysis.FunctionCalls.OrdinaryCallInfo;
 import dk.brics.tajs.analysis.InitialStateBuilder;
-import dk.brics.tajs.analysis.NativeFunctions;
+import dk.brics.tajs.analysis.ParallelTransfer;
 import dk.brics.tajs.analysis.PropVarOperations;
 import dk.brics.tajs.analysis.Solver;
-import dk.brics.tajs.analysis.dom.DOMEventLoop;
+import dk.brics.tajs.analysis.dom.DOMEvents;
 import dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects;
-import dk.brics.tajs.analysis.nativeobjects.JSGlobal;
+import dk.brics.tajs.analysis.nativeobjects.TAJSFunction;
 import dk.brics.tajs.flowgraph.AbstractNode;
 import dk.brics.tajs.flowgraph.BasicBlock;
 import dk.brics.tajs.flowgraph.Function;
-import dk.brics.tajs.flowgraph.jsnodes.AssumeNode;
 import dk.brics.tajs.flowgraph.jsnodes.BeginForInNode;
 import dk.brics.tajs.flowgraph.jsnodes.BeginLoopNode;
 import dk.brics.tajs.flowgraph.jsnodes.BeginWithNode;
@@ -56,28 +56,36 @@ import dk.brics.tajs.flowgraph.jsnodes.ReadPropertyNode;
 import dk.brics.tajs.flowgraph.jsnodes.ReadVariableNode;
 import dk.brics.tajs.flowgraph.jsnodes.ReturnNode;
 import dk.brics.tajs.flowgraph.jsnodes.ThrowNode;
-import dk.brics.tajs.flowgraph.jsnodes.TypeofNode;
 import dk.brics.tajs.flowgraph.jsnodes.UnaryOperatorNode;
 import dk.brics.tajs.flowgraph.jsnodes.WritePropertyNode;
 import dk.brics.tajs.flowgraph.jsnodes.WriteVariableNode;
+import dk.brics.tajs.lattice.CallEdge;
 import dk.brics.tajs.lattice.Context;
-import dk.brics.tajs.lattice.HeapContext;
+import dk.brics.tajs.lattice.FunctionPartitions;
+import dk.brics.tajs.lattice.FunctionTypeSignatures;
+import dk.brics.tajs.lattice.MustEquals;
+import dk.brics.tajs.lattice.ObjProperties;
 import dk.brics.tajs.lattice.ObjectLabel;
 import dk.brics.tajs.lattice.ObjectLabel.Kind;
+import dk.brics.tajs.lattice.PKey.StringPKey;
+import dk.brics.tajs.lattice.PKeys;
+import dk.brics.tajs.lattice.PartitionToken;
+import dk.brics.tajs.lattice.PartitionedValue;
 import dk.brics.tajs.lattice.State;
-import dk.brics.tajs.lattice.State.Properties;
-import dk.brics.tajs.lattice.Str;
 import dk.brics.tajs.lattice.UnknownValueResolver;
 import dk.brics.tajs.lattice.Value;
 import dk.brics.tajs.monitoring.IAnalysisMonitoring;
 import dk.brics.tajs.options.Options;
 import dk.brics.tajs.solver.BlockAndContext;
+import dk.brics.tajs.solver.CallDependencies;
 import dk.brics.tajs.solver.CallGraph;
+import dk.brics.tajs.solver.CallKind;
 import dk.brics.tajs.solver.NodeAndContext;
 import dk.brics.tajs.util.AnalysisException;
+import dk.brics.tajs.util.Collectors;
+import dk.brics.tajs.util.Pair;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -100,6 +108,8 @@ public class NodeTransfer implements NodeVisitor {
 
     private IAnalysisMonitoring m;
 
+    private Filtering filtering;
+
     /**
      * Constructs a new TransferFunctions object.
      */
@@ -113,6 +123,7 @@ public class NodeTransfer implements NodeVisitor {
         this.c = c;
         m = c.getMonitoring();
         pv = c.getAnalysis().getPropVarOperations();
+        filtering = c.getAnalysis().getFiltering();
     }
 
     /**
@@ -126,30 +137,28 @@ public class NodeTransfer implements NodeVisitor {
      * Transfer ordinary and exceptional return for the given call node and callee entry.
      */
     public void transferReturn(AbstractNode call_node, BasicBlock callee_entry, Context caller_context, Context callee_context,
-                               Context edge_context, boolean implicit) {
+                               Context edge_context, CallKind callKind) {
         if (call_node instanceof BeginForInNode) {
             for (EndForInNode endNode : ((BeginForInNode) call_node).getEndNodes()) {
-                BasicBlock end_block = endNode.getBlock();
-                if (c.getAnalysisLatticeElement().getState(end_block, callee_context) != null)// (EndForInNode uses same context as corresponding BeginForInNode)
-                    c.addToWorklist(end_block, callee_context);
+                for (State end_state : c.getAnalysisLatticeElement().getStatesWithEntryContext(endNode.getBlock(), callee_context))
+                    c.withStateAndNode(end_state, endNode, () -> {
+                        transferEndForIn(endNode);
+                        return null;
+                    });
             }
-        } else { // call_node is an ordinary call node
+        } else { // call_node is an ordinary call node or an implicit call
             Function callee = callee_entry.getFunction();
-            BasicBlock ordinary_exit = callee.getOrdinaryExit();
-            BasicBlock exceptional_exit = callee.getExceptionalExit();
-            State ordinary_exit_state = c.getAnalysisLatticeElement().getState(ordinary_exit, callee_context);// (ReturnNode uses same context as corresponding function entry node)
-            State exceptional_exit_state = c.getAnalysisLatticeElement().getState(exceptional_exit, callee_context);
             NodeAndContext<Context> caller = new NodeAndContext<>(call_node, caller_context);
-            if (ordinary_exit_state != null) {
+            BasicBlock ordinary_exit = callee.getOrdinaryExit();
+            for (State ordinary_exit_state : c.getAnalysisLatticeElement().getStatesWithEntryContext(ordinary_exit, callee_context))
                 if (ordinary_exit.getFirstNode() instanceof ReturnNode) {
                     ReturnNode returnNode = (ReturnNode) ordinary_exit.getFirstNode();
-                    transferReturn(returnNode.getReturnValueRegister(), ordinary_exit, ordinary_exit_state.clone(), caller, edge_context, implicit);
+                    transferReturn(returnNode.getReturnValueRegister(), ordinary_exit, ordinary_exit_state.clone(), caller, edge_context, callKind);
                 } else
                     throw new AnalysisException("ReturnNode expected");
-            }
-            if (exceptional_exit_state != null) {
-                transferExceptionalReturn(exceptional_exit, exceptional_exit_state.clone(), caller, edge_context, implicit);
-            }
+            BasicBlock exceptional_exit = callee.getExceptionalExit();
+            for (State exceptional_exit_state : c.getAnalysisLatticeElement().getStatesWithEntryContext(exceptional_exit, callee_context))
+                transferExceptionalReturn(exceptional_exit, exceptional_exit_state.clone(), caller, edge_context, callKind);
         }
     }
 
@@ -194,8 +203,11 @@ public class NodeTransfer implements NodeVisitor {
             default:
                 throw new AnalysisException();
         }
-        if (n.getResultRegister() != AbstractNode.NO_VALUE)
+        v = Partitioning.useOnlyValueForAlivePartitions(v, c.getState().getPartitioning());
+        if (n.getResultRegister() != AbstractNode.NO_VALUE) {
             c.getState().writeRegister(n.getResultRegister(), v);
+            c.getState().getMustReachingDefs().addReachingDef(n.getResultRegister(), n);
+        }
     }
 
     /**
@@ -203,12 +215,14 @@ public class NodeTransfer implements NodeVisitor {
      */
     @Override
     public void visit(NewObjectNode n) {
-        HeapContext heapContext = c.getAnalysis().getContextSensitivityStrategy().makeObjectLiteralHeapContext(n, c.getState());
-        ObjectLabel objlabel = new ObjectLabel(n, Kind.OBJECT, heapContext);
+        Context heapContext = c.getAnalysis().getContextSensitivityStrategy().makeObjectLiteralHeapContext(n, c.getState(), c);
+        ObjectLabel objlabel = ObjectLabel.make(n, Kind.OBJECT, heapContext);
         c.getState().newObject(objlabel);
         c.getState().writeInternalPrototype(objlabel, Value.makeObject(InitialStateBuilder.OBJECT_PROTOTYPE));
-        if (n.getResultRegister() != AbstractNode.NO_VALUE)
+        if (n.getResultRegister() != AbstractNode.NO_VALUE) {
             c.getState().writeRegister(n.getResultRegister(), Value.makeObject(objlabel));
+            c.getState().getMustReachingDefs().addReachingDef(n.getResultRegister(), n);
+        }
     }
 
     /**
@@ -216,8 +230,20 @@ public class NodeTransfer implements NodeVisitor {
      */
     @Override
     public void visit(UnaryOperatorNode n) {
-        Value arg = c.getState().readRegister(n.getArgRegister());
-        arg = UnknownValueResolver.getRealValue(arg, c.getState());
+        Value arg = UnknownValueResolver.getRealValue(c.getState().readRegister(n.getArgRegister()), c.getState());
+        Map<AbstractNode, Set<PartitionToken>> partitions = Partitioning.getPartitionsForUnop(n, arg);
+        Value v = Partitioning.applyPartitions(partitions, arg, v1 -> unop(n, v1));
+        if (v.isNotPresent() && !Options.get().isPropagateDeadFlow()) {
+            c.getState().setToBottom();
+            return;
+        }
+        if (n.getResultRegister() != AbstractNode.NO_VALUE) {
+            c.getState().writeRegister(n.getResultRegister(), v);
+            c.getState().getMustReachingDefs().addReachingDef(n.getResultRegister(), n);
+        }
+    }
+
+    private Value unop(UnaryOperatorNode n, Value arg) {
         Value v;
         switch (n.getOperator()) {
             case COMPLEMENT:
@@ -232,15 +258,13 @@ public class NodeTransfer implements NodeVisitor {
             case PLUS:
                 v = Operators.uplus(arg, c);
                 break;
+            case TYPEOF:
+                v = Operators.typeof(arg, arg.isMaybeAbsent());
+                break;
             default:
                 throw new AnalysisException();
         }
-        if (v.isNotPresent() && !Options.get().isPropagateDeadFlow()) {
-            c.getState().setToNone();
-            return;
-        }
-        if (n.getResultRegister() != AbstractNode.NO_VALUE)
-            c.getState().writeRegister(n.getResultRegister(), v);
+        return v;
     }
 
     /**
@@ -248,10 +272,21 @@ public class NodeTransfer implements NodeVisitor {
      */
     @Override
     public void visit(BinaryOperatorNode n) {
-        Value arg1 = c.getState().readRegister(n.getArg1Register());
-        Value arg2 = c.getState().readRegister(n.getArg2Register());
-        arg1 = UnknownValueResolver.getRealValue(arg1, c.getState());
-        arg2 = UnknownValueResolver.getRealValue(arg2, c.getState());
+        Value arg1 = UnknownValueResolver.getRealValue(c.getState().readRegister(n.getArg1Register()), c.getState());
+        Value arg2 = UnknownValueResolver.getRealValue(c.getState().readRegister(n.getArg2Register()), c.getState());
+        Map<AbstractNode, Set<PartitionToken>> partitions = Partitioning.getPartitionsForBinop(n, arg1, arg2);
+        Value v = Partitioning.applyPartitions(partitions, arg1, arg2, (v1, v2) -> binop(n, v1, v2));
+        if (v.isNotPresent() && !Options.get().isPropagateDeadFlow()) {
+            c.getState().setToBottom();
+            return;
+        }
+        if (n.getResultRegister() != AbstractNode.NO_VALUE) {
+            c.getState().writeRegister(n.getResultRegister(), v);
+            c.getState().getMustReachingDefs().addReachingDef(n.getResultRegister(), n);
+        }
+    }
+
+    private Value binop(BinaryOperatorNode n, Value arg1, Value arg2) {
         Value v;
         switch (n.getOperator()) {
             case ADD:
@@ -320,12 +355,7 @@ public class NodeTransfer implements NodeVisitor {
             default:
                 throw new AnalysisException();
         }
-        if (v.isNotPresent() && !Options.get().isPropagateDeadFlow()) {
-            c.getState().setToNone();
-            return;
-        }
-        if (n.getResultRegister() != AbstractNode.NO_VALUE)
-            c.getState().writeRegister(n.getResultRegister(), v);
+        return v;
     }
 
     /**
@@ -335,24 +365,31 @@ public class NodeTransfer implements NodeVisitor {
     public void visit(ReadVariableNode n) {
         String varname = n.getVariableName();
         Value v;
+        Set<ObjectLabel> base_objs = null;
         if (varname.equals("this")) {
             // 11.1.1 read 'this' from the execution context
             v = c.getState().readThis();
             m.visitReadThis(n, v, c.getState(), InitialStateBuilder.GLOBAL);
         } else { // ordinary variable
             int result_base_reg = n.getResultBaseRegister();
-            Set<ObjectLabel> base_objs = null;
-            if (c.isScanning() || result_base_reg != AbstractNode.NO_VALUE)
-                base_objs = newSet();
+            base_objs = newSet();
             v = pv.readVariable(varname, base_objs);
+            if (Options.get().isBlendedAnalysisEnabled()) {
+                v = c.getAnalysis().getBlendedAnalysis().getVariableValue(v, n, c.getState());
+            }
+            if (Options.get().isPropNamePartitioning()) {
+                // if varname is a free variable with partitioned value, then refine using the context
+                v = Partitioning.getVariableValueFromPartition(v, c);
+            }
             m.visitPropertyRead(n, base_objs, Value.makeTemporaryStr(varname), c.getState(), true);
-            m.visitVariableAsRead(n, v, c.getState());
-            m.visitVariableOrProperty(varname, n.getSourceLocation(), v, c.getState().getContext(), c.getState());
-            m.visitReadNonThisVariable(n, v);
-            if (v.isMaybeAbsent())
-                Exceptions.throwReferenceError(c);
-            if (v.isNotPresent() && !Options.get().isPropagateDeadFlow()) {
-                c.getState().setToNone();
+            m.visitVariableAsRead(n, varname, v, c.getState());
+            m.visitVariableOrProperty(n, varname, n.getSourceLocation(), v, c.getState().getContext(), c.getState());
+            if (!n.isKeepAbsent())
+                m.visitReadNonThisVariable(n, v);
+            if (!n.isKeepAbsent() && v.isMaybeAbsent())
+                Exceptions.throwReferenceError(c, v.isMaybePresent());
+            if (!n.isKeepAbsent() && v.isNotPresent() && !Options.get().isPropagateDeadFlow()) {
+                c.getState().setToBottom();
                 return;
             }
             if (result_base_reg != AbstractNode.NO_VALUE)
@@ -360,12 +397,15 @@ public class NodeTransfer implements NodeVisitor {
             m.visitRead(n, v, c.getState());
             m.visitReadVariable(n, v, c.getState()); // TODO: combine some of these m.visitXYZ methods?
         }
-        if (v.isNotPresent() && !Options.get().isPropagateDeadFlow()) {
-            c.getState().setToNone();
+        if (!n.isKeepAbsent() && v.isNotPresent() && !Options.get().isPropagateDeadFlow()) {
+            c.getState().setToBottom();
             return;
         }
-        if (n.getResultRegister() != AbstractNode.NO_VALUE)
-            c.getState().writeRegister(n.getResultRegister(), v.restrictToNotAbsent());
+        if (n.getResultRegister() != AbstractNode.NO_VALUE) {
+            c.getState().writeRegister(n.getResultRegister(), n.isKeepAbsent() ? v : v.restrictToNotAbsent());
+            c.getState().getMustReachingDefs().addReachingDef(n.getResultRegister(), n);
+            c.getState().getMustEquals().addMustEquals(n.getResultRegister(), MustEquals.getSingleton(base_objs), StringPKey.make(varname));
+        }
     }
 
     /**
@@ -374,14 +414,23 @@ public class NodeTransfer implements NodeVisitor {
     @Override
     public void visit(WriteVariableNode n) {
         Value v = c.getState().readRegister(n.getValueRegister());
-        Set<ObjectLabel> objs = pv.writeVariable(n.getVariableName(), v, true);
+        if (Options.get().isBlendedAnalysisEnabled()) {
+            v = c.getAnalysis().getBlendedAnalysis().getVariableValue(v, n, c.getState());
+            if (v.isNone()) {
+                c.getState().setToBottom();
+                return;
+            }
+        }
+        Pair<Set<ObjectLabel>,Boolean> objsDef = pv.writeVariable(n.getVariableName(), v, true);
         Function f = n.getBlock().getFunction();
         if (f.getParameterNames().contains(n.getVariableName())) { // TODO: review
-            ObjectLabel arguments_obj = new ObjectLabel(f.getEntry().getFirstNode(), Kind.ARGUMENTS);
-            pv.writeProperty(arguments_obj, Integer.toString(f.getParameterNames().indexOf(n.getVariableName())), v);
+            ObjectLabel arguments_obj = ObjectLabel.make(f.getEntry().getFirstNode(), Kind.ARGUMENTS);
+            pv.writeProperty(arguments_obj, StringPKey.make(Integer.toString(f.getParameterNames().indexOf(n.getVariableName()))), v);
         }
-        m.visitPropertyWrite(n, objs, Value.makeTemporaryStr(n.getVariableName()));
-        m.visitVariableOrProperty(n.getVariableName(), n.getSourceLocation(), v, c.getState().getContext(), c.getState());
+        m.visitPropertyWrite(n, objsDef.getFirst(), Value.makeTemporaryStr(n.getVariableName()));
+        m.visitVariableOrProperty(n, n.getVariableName(), n.getSourceLocation(), v, c.getState().getContext(), c.getState());
+        if (objsDef.getSecond())
+            c.getState().getMustEquals().addMustEquals(n.getValueRegister(), MustEquals.getSingleton(objsDef.getFirst()), StringPKey.make(n.getVariableName()));
     }
 
     /**
@@ -392,13 +441,19 @@ public class NodeTransfer implements NodeVisitor {
         // get the base value, coerce with ToObject
         Value baseval = c.getState().readRegister(n.getBaseRegister());
         baseval = UnknownValueResolver.getRealValue(baseval, c.getState());
+        if (Options.get().isBlendedAnalysisEnabled())
+            baseval = Value.join(c.getAnalysis().getBlendedAnalysis().getBase(baseval, n, c.getState())); // join does not decrease precision due to base being object labels only
         m.visitPropertyAccess(n, baseval);
-        Set<ObjectLabel> objlabels = Conversion.toObjectLabels(n, baseval, c);
+        Value newBaseVal = Conversion.toObject(n, baseval, c); // models exception if null/undefined
+        Set<ObjectLabel> objlabels = newBaseVal.getObjectLabels();
         if (objlabels.isEmpty() && !Options.get().isPropagateDeadFlow()) {
-            c.getState().setToNone();
+            c.getState().setToBottom();
             return;
         }
-        c.getState().writeRegister(n.getBaseRegister(), Value.makeObject(objlabels)); // if null/undefined, an exception would have been thrown via toObjectLabels
+        if (filtering.assumeNotNullUndef(n.getBaseRegister()))
+            return;
+        if (!baseval.restrictToNotNullNotUndef().equals(newBaseVal))
+            c.getState().writeRegister(n.getBaseRegister(), newBaseVal); // write coerced value back to the base register (maybe used by CallNode later)
         // get the property name value, separate the undefined/null/NaN components, coerce with ToString
         Value propertyval;
         if (n.isPropertyFixed()) {
@@ -407,60 +462,94 @@ public class NodeTransfer implements NodeVisitor {
             propertyval = c.getState().readRegister(n.getPropertyRegister());
             propertyval = UnknownValueResolver.getRealValue(propertyval, c.getState());
         }
+        if (Options.get().isBlendedAnalysisEnabled())
+            propertyval = Value.join(c.getAnalysis().getBlendedAnalysis().getPropertyName(propertyval, baseval, n, c.getState())); // join does not decrease precision, since the resulting value will be the merge of all property reads and also through blended analysis
+        Value originalPropertyVal = propertyval;
         boolean maybe_undef = propertyval.isMaybeUndef();
         boolean maybe_null = propertyval.isMaybeNull();
         boolean maybe_nan = propertyval.isMaybeNaN();
-        propertyval = propertyval.restrictToNotNullNotUndef().restrictToNotNaN();
-        Str propertystr = Conversion.toString(propertyval, c);
+        Set<ObjectLabel> symbols = propertyval.getSymbols();
+        propertyval = propertyval.restrictToNotNullNotUndef().restrictToNotNaN().restrictToNotSymbol();
+        Value propertystr = Conversion.toString(propertyval, c).join(Value.makeObject(symbols));
+        if ((propertystr.isNone() && !maybe_undef && !maybe_null && !maybe_nan) && !Options.get().isPropagateDeadFlow()) { // TODO: maybe need more aborts like this one?
+            c.getState().setToBottom();
+            return;
+        }
         // read the object property value, as fixed property name or unknown property name, and separately for "undefined"/"null"/"NaN"
         Value v;
-        boolean read_undefined = false;
-        boolean read_null = false;
-        boolean read_nan = false;
-        if (propertystr.isMaybeSingleStr()) {
+        boolean undefinedCovered = false;
+        boolean nullCovered = false;
+        boolean nanCovered = false;
+        Set<ObjectLabel> base_objs = newSet();
+        if (propertystr.isMaybeSingleStr()) { // fast-track for single-string property name
             String propertyname = propertystr.getStr();
             if (c.isScanning())
-                m.visitReadProperty(n, objlabels, propertystr, maybe_undef || maybe_null || maybe_nan, c.getState(), pv.readPropertyWithAttributes(objlabels, propertystr));
-            v = pv.readPropertyValue(objlabels, propertyname);
+                m.visitReadProperty(n, objlabels, propertystr, maybe_undef || maybe_null || maybe_nan, c.getState(), pv.readPropertyWithAttributes(objlabels, propertystr), InitialStateBuilder.GLOBAL);
+            if (newBaseVal instanceof PartitionedValue) {
+                v = newBaseVal.applyFunction(baseVal -> PartitionedValue.ignorePartitions(UnknownValueResolver.getRealValue(pv.readPropertyValue(baseVal.getObjectLabels(), propertyname, base_objs), c.getState())));
+            } else {
+                v = pv.readPropertyValue(objlabels, propertyname, base_objs);
+            }
             m.visitPropertyRead(n, objlabels, propertystr, c.getState(), true);
-        } else if (!propertystr.isNotStr()) {
+        } else { // fuzzy property name
+            if (!propertystr.isNotStr() || propertystr.isMaybeSymbol()) {
+                if (c.isScanning())
+                    m.visitReadProperty(n, objlabels, propertystr, true, c.getState(), pv.readPropertyWithAttributes(objlabels, propertystr), InitialStateBuilder.GLOBAL);
+                m.visitPropertyRead(n, objlabels, propertystr, c.getState(), true);
+            }
+            if (!Options.get().isPropNamePartitioning() || !propertystr.isMaybeFuzzyStr() || propertystr.restrictToNotStrOtherNum().restrictToNotStrUInt().isNone()) {
+                // don't use value partitioning (if not enabled, if not fuzzy string, or if only numeric)
+                v = pv.readPropertyValue(objlabels, propertystr, base_objs);
+            } else { // potentially use value partitioning
+                Value propertystrall = propertystr;
+                if (maybe_undef) {
+                    propertystrall = propertystrall.joinStr("undefined");
+                    undefinedCovered = true;
+                }
+                if (maybe_null) {
+                    propertystrall = propertystrall.joinStr("null");
+                    nullCovered = true;
+                }
+                if (maybe_nan) {
+                    propertystrall = propertystrall.joinStr("NaN");
+                    nanCovered = true;
+                }
+                v = Partitioning.partitionPropValue(n, n.getPropertyRegister(), objlabels, originalPropertyVal, propertystrall, base_objs, true, c);
+                if (v == null) { // no partitioning performed, fall back to non-partitioned reading
+                    v = pv.readPropertyValue(objlabels, propertystr, base_objs);
+                    undefinedCovered = nullCovered = nanCovered = false; // undo, not covered after all
+                }
+            }
+        }
+        if (maybe_undef && !undefinedCovered) {
             if (c.isScanning())
-                m.visitReadProperty(n, objlabels, propertystr, true, c.getState(), pv.readPropertyWithAttributes(objlabels, propertystr));
-            m.visitPropertyRead(n, objlabels, propertystr, c.getState(), true);
-            v = pv.readPropertyValue(objlabels, propertystr);
-            read_undefined = propertystr.isMaybeStr("undefined");
-            read_null = propertystr.isMaybeStr("null");
-            read_nan = propertystr.isMaybeStr("NaN");
-        } else
-            v = Value.makeNone();
-        if (maybe_undef && !read_undefined) {
-            if (c.isScanning())
-                m.visitReadProperty(n, objlabels, Value.makeTemporaryStr("undefined"), true, c.getState(), pv.readPropertyWithAttributes(objlabels, propertystr));
+                m.visitReadProperty(n, objlabels, Value.makeTemporaryStr("undefined"), true, c.getState(), pv.readPropertyWithAttributes(objlabels, propertystr), InitialStateBuilder.GLOBAL);
             v = UnknownValueResolver.join(v, pv.readPropertyValue(objlabels, "undefined"), c.getState());
         }
-        if (maybe_null && !read_null) {
+        if (maybe_null && !nullCovered) {
             if (c.isScanning())
-                m.visitReadProperty(n, objlabels, Value.makeTemporaryStr("null"), true, c.getState(), pv.readPropertyWithAttributes(objlabels, propertystr));
+                m.visitReadProperty(n, objlabels, Value.makeTemporaryStr("null"), true, c.getState(), pv.readPropertyWithAttributes(objlabels, propertystr), InitialStateBuilder.GLOBAL);
             v = UnknownValueResolver.join(v, pv.readPropertyValue(objlabels, "null"), c.getState());
         }
-        if (maybe_nan && !read_nan) {
+        if (maybe_nan && !nanCovered) {
             if (c.isScanning())
-                m.visitReadProperty(n, objlabels, Value.makeTemporaryStr("NaN"), true, c.getState(), pv.readPropertyWithAttributes(objlabels, propertystr));
+                m.visitReadProperty(n, objlabels, Value.makeTemporaryStr("NaN"), true, c.getState(), pv.readPropertyWithAttributes(objlabels, propertystr), InitialStateBuilder.GLOBAL);
             v = UnknownValueResolver.join(v, pv.readPropertyValue(objlabels, "NaN"), c.getState());
         }
-        // remove all the TAJS hooks, which are spurious if accessed through a dynamic property
-        if (!n.isPropertyFixed()) {
-            v = JSGlobal.removeTAJSSpecificFunctions(v);
-        }
-        m.visitVariableOrProperty(n.getPropertyString(), n.getSourceLocation(), v, c.getState().getContext(), c.getState());
+        if (Options.get().isBlendedAnalysisEnabled())
+            v = Value.join(c.getAnalysis().getBlendedAnalysis().getValue(v, baseval, originalPropertyVal, n, c.getState()));
+        m.visitVariableOrProperty(n, n.getPropertyString(), n.getSourceLocation(), v, c.getState().getContext(), c.getState());
         m.visitRead(n, v, c.getState());
         if (v.isNotPresent() && !Options.get().isPropagateDeadFlow()) {
-            c.getState().setToNone();
+            c.getState().setToBottom();
             return;
         }
         // store the resulting value
-        if (n.getResultRegister() != AbstractNode.NO_VALUE)
+        if (n.getResultRegister() != AbstractNode.NO_VALUE) {
             c.getState().writeRegister(n.getResultRegister(), v);
+            c.getState().getMustReachingDefs().addReachingDef(n.getResultRegister(), n);
+            c.getState().getMustEquals().addMustEquals(n.getResultRegister(), MustEquals.getSingleton(base_objs), MustEquals.getSingleton(propertystr));
+        }
     }
 
     /**
@@ -471,13 +560,13 @@ public class NodeTransfer implements NodeVisitor {
         // get the base value, coerce with ToObject
         Value baseval = c.getState().readRegister(n.getBaseRegister());
         baseval = UnknownValueResolver.getRealValue(baseval, c.getState());
+        if (Options.get().isBlendedAnalysisEnabled())
+            baseval = UnknownValueResolver.join(c.getAnalysis().getBlendedAnalysis().getBase(baseval, n, c.getState()), c.getState()); // join does not decrease precision due to base being object labels only
         m.visitPropertyAccess(n, baseval);
-        Set<ObjectLabel> objlabels = Conversion.toObjectLabels(n, baseval, c);
-        if (objlabels.isEmpty() && !Options.get().isPropagateDeadFlow()) {
-            c.getState().setToNone();
+        Value coercedBaseval = Conversion.toObject(n, baseval, c); // models exception if null/undefined
+        Set<ObjectLabel> objlabels = coercedBaseval.getObjectLabels();
+        if (filtering.assumeNotNullUndef(n.getBaseRegister()))
             return;
-        }
-        c.getState().writeRegister(n.getBaseRegister(), Value.makeObject(objlabels)); // if null/undefined, an exception would have been thrown via toObjectLabels
         // get the property name value, separate the undefined/null/NaN components, coerce with ToString
         Value propertyval;
         if (n.isPropertyFixed()) {
@@ -486,32 +575,70 @@ public class NodeTransfer implements NodeVisitor {
             propertyval = c.getState().readRegister(n.getPropertyRegister());
             propertyval = UnknownValueResolver.getRealValue(propertyval, c.getState());
         }
-        boolean maybe_undef = propertyval.isMaybeUndef();
-        boolean maybe_null = propertyval.isMaybeNull();
-        boolean maybe_nan = propertyval.isMaybeNaN();
-        propertyval = propertyval.restrictToNotNullNotUndef().restrictToNotNaN();
-        Value propertystr = Conversion.toString(propertyval, c);
-        if (propertystr.isNone()) { // TODO: maybe need more aborts like this one?
-            return;
+        Set<Value> propertyvalues;
+        if (Options.get().isBlendedAnalysisEnabled()) { // do not toString coerce before refinements are made
+            propertyvalues = c.getAnalysis().getBlendedAnalysis().getPropertyName(propertyval, baseval, n, c.getState()).stream().collect(Collectors.toSet());
+        } else {
+            propertyvalues = singleton(propertyval);
         }
-        // get the value to be written
-        Value v = c.getState().readRegister(n.getValueRegister());
-        NativeFunctions.updateArrayLength(n, objlabels, propertystr, v, c);
-        // write the object property value, as fixed property name or unknown property name, and separately for "undefined"/"null"/"NaN"
-        pv.writeProperty(objlabels, propertystr, v, true, maybe_undef || maybe_null || maybe_nan);
-        if (maybe_undef && !propertystr.isMaybeStr("undefined"))
-            pv.writeProperty(objlabels, Value.makeTemporaryStr("undefined"), v, true, !propertystr.isNotStr());
-        if (maybe_null && !propertystr.isMaybeStr("null"))
-            pv.writeProperty(objlabels, Value.makeTemporaryStr("null"), v, true, !propertystr.isNotStr());
-        if (maybe_nan && !propertystr.isMaybeStr("NaN"))
-            pv.writeProperty(objlabels, Value.makeTemporaryStr("NaN"), v, true, !propertystr.isNotStr());
-        m.visitPropertyWrite(n, objlabels, propertystr); // TODO: more monitoring around here?
-        if (Options.get().isEvalStatistics()
-                && propertystr.getStr() != null
-                && propertystr.getStr().equals("innerHTML")) {
-            m.visitInnerHTMLWrite(n, v);
+        ParallelTransfer pt = new ParallelTransfer(c);
+        for (Value pval : propertyvalues) {
+            boolean maybe_undef = pval.isMaybeUndef();
+            boolean maybe_null = pval.isMaybeNull();
+            boolean maybe_nan = pval.isMaybeNaN();
+            Set<ObjectLabel> symbols = pval.getSymbols();
+            Value v = c.getState().readRegister(n.getValueRegister());
+            if (Options.get().isBlendedAnalysisEnabled()) {
+                v = Value.join(c.getAnalysis().getBlendedAnalysis().getValue(v, baseval, pval, n, c.getState())); // join does not decrease precision, since the values are all written to this property anyway
+            }
+            if (v.isNone()) {
+                continue;
+            }
+            Value originalPVal = pval;
+            pval = pval.restrictToNotNullNotUndef().restrictToNotNaN().restrictToNotSymbol();
+            Value propertystr = Conversion.toString(pval, c).join(Value.makeObject(symbols));
+            if ((propertystr.isNone() && !maybe_undef && !maybe_null && !maybe_nan) && !Options.get().isPropagateDeadFlow()) { // TODO: maybe need more aborts like this one?
+                continue;
+            }
+            switch (n.getKind()) {
+                case GETTER:
+                    v = v.makeGetter();
+                    break;
+                case SETTER:
+                    v = v.makeSetter();
+                    break;
+                case ORDINARY:
+                    // do nothing
+                    break;
+                default:
+                    throw new AnalysisException("Unexpected case: " + n.getKind());
+            }
+            if (!Partitioning.usePartitionedWriteProperty(coercedBaseval, propertystr, v)) { // not using value partitioning
+                Value finalV = PartitionedValue.ignorePartitions(v);
+                // write the object property value, and separately for "undefined"/"null"/"NaN"
+                if (!propertystr.isNone())
+                    pt.add(() -> pv.writeProperty(objlabels, propertystr, finalV, false, n.isDecl()));
+                if (maybe_undef && !propertystr.isMaybeStr("undefined"))
+                    pt.add(() -> pv.writeProperty(objlabels, Value.makeTemporaryStr("undefined"), finalV, false, n.isDecl()));
+                if (maybe_null && !propertystr.isMaybeStr("null"))
+                    pt.add(() -> pv.writeProperty(objlabels, Value.makeTemporaryStr("null"), finalV, false, n.isDecl()));
+                if (maybe_nan && !propertystr.isMaybeStr("NaN"))
+                    pt.add(() -> pv.writeProperty(objlabels, Value.makeTemporaryStr("NaN"), finalV, false, n.isDecl()));
+            } else { // using value partitioning
+                Value propertystrall = propertystr;
+                if (maybe_undef || maybe_null || maybe_nan)
+                    propertystrall = Partitioning.joinUndefNullNaNStrings(originalPVal, propertystr);
+                Partitioning.writePropertyWithPartitioning(pt, objlabels, coercedBaseval, propertystrall, v, n, c, pv);
+            }
+            m.visitPropertyWrite(n, objlabels, propertystr); // TODO: more monitoring around here?
+            if (Options.get().isEvalStatistics()
+                    && propertystr.isMaybeSingleStr()
+                    && propertystr.getStr().equals("innerHTML")) {
+                m.visitInnerHTMLWrite(n, v);
+            }
+            m.visitVariableOrProperty(n, n.getPropertyString(), n.getSourceLocation(), v, c.getState().getContext(), c.getState());
         }
-        m.visitVariableOrProperty(n.getPropertyString(), n.getSourceLocation(), v, c.getState().getContext(), c.getState());
+        pt.complete();
     }
 
     /**
@@ -522,7 +649,7 @@ public class NodeTransfer implements NodeVisitor {
         Value v;
         if (n.isVariable()) {
             v = pv.deleteVariable(n.getVariableName());
-            m.visitVariableOrProperty(n.getVariableName(), n.getSourceLocation(), v, c.getState().getContext(), c.getState());
+            m.visitVariableOrProperty(n, n.getVariableName(), n.getSourceLocation(), v, c.getState().getContext(), c.getState());
         } else {
             Value baseval = c.getState().readRegister(n.getBaseRegister());
             baseval = UnknownValueResolver.getRealValue(baseval, c.getState());
@@ -530,7 +657,7 @@ public class NodeTransfer implements NodeVisitor {
             if (baseval.isMaybeNull() || baseval.isMaybeUndef()) {
                 Exceptions.throwTypeError(c);
                 if (baseval.isNullOrUndef() && !Options.get().isPropagateDeadFlow()) {
-                    c.getState().setToNone();
+                    c.getState().setToBottom();
                     return;
                 }
             }
@@ -538,48 +665,27 @@ public class NodeTransfer implements NodeVisitor {
             c.getState().writeRegister(n.getBaseRegister(), baseval);
             Set<ObjectLabel> objlabels = Conversion.toObjectLabels(n, baseval, c);
             if (objlabels.isEmpty() && !Options.get().isPropagateDeadFlow()) {
-                c.getState().setToNone();
+                c.getState().setToBottom();
                 return;
             }
-            Str propertystr;
+            PKeys propertystr;
             if (n.isPropertyFixed()) {
                 propertystr = Value.makeStr(n.getPropertyString());
             } else {
                 Value propertyval = c.getState().readRegister(n.getPropertyRegister());
-                propertystr = Conversion.toString(propertyval, c);
+                propertyval = UnknownValueResolver.getRealValue(propertyval, c.getState());
+                propertystr = Conversion.toString(propertyval.restrictToNotSymbol(), c).join(propertyval.restrictToSymbol());
             }
             v = pv.deleteProperty(objlabels, propertystr, false);
         }
         if (v.isNotPresent() && !Options.get().isPropagateDeadFlow()) {
-            c.getState().setToNone();
+            c.getState().setToBottom();
             return;
         }
-        if (n.getResultRegister() != AbstractNode.NO_VALUE)
+        if (n.getResultRegister() != AbstractNode.NO_VALUE) {
             c.getState().writeRegister(n.getResultRegister(), v);
-    }
-
-    /**
-     * 11.13 and 11.4.3 assignment with 'typeof' operator.
-     */
-    @Override
-    public void visit(TypeofNode n) {
-        Value v;
-        if (n.isVariable()) {
-            Value val = pv.readVariable(n.getVariableName(), null); // TODO: should also count as a variable read in Monitoring?
-            val = UnknownValueResolver.getRealValue(val, c.getState());
-            v = Operators.typeof(val, val.isMaybeAbsent());
-            m.visitVariableOrProperty(n.getVariableName(), n.getOperandSourceLocation(), val, c.getState().getContext(), c.getState());
-        } else {
-            Value val = c.getState().readRegister(n.getArgRegister());
-            val = UnknownValueResolver.getRealValue(val, c.getState());
-            v = Operators.typeof(val, false);
+            c.getState().getMustReachingDefs().addReachingDef(n.getResultRegister(), n);
         }
-        if (v.isNotPresent() && !Options.get().isPropagateDeadFlow()) {
-            c.getState().setToNone();
-            return;
-        }
-        if (n.getResultRegister() != AbstractNode.NO_VALUE)
-            c.getState().writeRegister(n.getResultRegister(), v);
     }
 
     /**
@@ -606,21 +712,43 @@ public class NodeTransfer implements NodeVisitor {
      */
     @Override
     public void visit(CallNode n) {
-        if (n.getFunctionRegister() != AbstractNode.NO_VALUE) // old style call (where the function is given as a variable read)
-            FunctionCalls.callFunction(new OrdinaryCallInfo(n, c.getState()) {
+        if (n.getTajsFunctionName() != null) {
+            FunctionCalls.callFunction(new OrdinaryCallInfo(n, c) {
+                @Override
+                public Value getFunctionValue() {
+                    return Value.makeObject(ObjectLabel.make(new TAJSFunction(n.getTajsFunctionName()), Kind.FUNCTION));
+                }
+
+                @Override
+                public Value getThis() {
+                    return Value.makeNull();
+                }
+            }, c);
+            return;
+        }
+        Partitioning.applyTypePartitioning(n, c);
+        if (n.getFunctionRegister() != AbstractNode.NO_VALUE) { // old style call (where the function is given as a variable read)
+            State state = c.getState();
+            Value originalFunctionValue = state.readRegister(n.getFunctionRegister());
+            Collection<Value> refinedFunctionValues = Options.get().isBlendedAnalysisEnabled() ?
+                    c.getAnalysis().getBlendedAnalysis().getValue(originalFunctionValue, null, null, n, state) :
+                    singleton(originalFunctionValue);
+            if (refinedFunctionValues.isEmpty()) {
+                state.setToBottom();
+                return;
+            }
+            Value functionValue = UnknownValueResolver.getRealValue(Value.join(refinedFunctionValues), state);
+            FunctionCalls.callFunction(new OrdinaryCallInfo(n, c, functionValue.getFunctionPartitions(), functionValue.getFunctionTypeSignatures()) {
 
                 @Override
                 public Value getFunctionValue() {
-                    Value functionValue = c.getState().readRegister(n.getFunctionRegister());
                     if (n.getLiteralConstructorKind() != null) {
                         // these literal invocations can not be spurious in ES5
                         switch (n.getLiteralConstructorKind()) {
                             case ARRAY:
-                                functionValue = Value.makeObject(new ObjectLabel(ECMAScriptObjects.ARRAY, Kind.FUNCTION));
-                                break;
+                                return Value.makeObject(ObjectLabel.make(ECMAScriptObjects.ARRAY, Kind.FUNCTION));
                             case REGEXP:
-                                functionValue = Value.makeObject(new ObjectLabel(ECMAScriptObjects.REGEXP, Kind.FUNCTION));
-                                break;
+                                return Value.makeObject(ObjectLabel.make(ECMAScriptObjects.REGEXP, Kind.FUNCTION));
                             default:
                                 throw new AnalysisException("Unhandled literal constructor type: " + n.getLiteralConstructorKind());
                         }
@@ -629,13 +757,38 @@ public class NodeTransfer implements NodeVisitor {
                 }
 
                 @Override
-                public Set<ObjectLabel> prepareThis(State caller_state, State callee_state) {
-                    return UserFunctionCalls.determineThis(n, caller_state, callee_state, c, n.getBaseRegister());
+                public Value getThis() {
+                    if (n.getBaseRegister() == AbstractNode.NO_VALUE) {
+                        return Value.makeUndef(); // ES3 11.2.3 step 6, ES5: use undefined instead of null (11.2.3#7)
+                    } else { // ES3 11.2.3 step 7 and 10.1.6: replace activation objects by null, ES511.2.3#7: use undefined instead of null
+                        Set<ObjectLabel> t = state.readRegister(n.getBaseRegister()).getObjectLabels();
+                        Set<ObjectLabel> this_obj = newSet();
+                        boolean is_maybe_undefined = false;
+                        for (ObjectLabel objlabel : t) {
+                            if (objlabel.getKind() == Kind.ACTIVATION) {
+                                is_maybe_undefined = true;
+                            } else {
+                                this_obj.add(objlabel);
+                            }
+                        }
+                        Value v = Value.makeObject(this_obj);
+                        if (is_maybe_undefined) {
+                            v = v.joinUndef();
+                        }
+                        return v;
+                    }
+                }
+
+                @Override
+                public boolean assumeFunction() {
+                    return filtering.assumeFunction(n.getFunctionRegister());
                 }
             }, c);
-        else { // getPropertyString / getPropertyRegister - like ReadPropertyNode
+        } else { // getPropertyString / getPropertyRegister - like ReadPropertyNode
             Value baseval = c.getState().readRegister(n.getBaseRegister());
             baseval = UnknownValueResolver.getRealValue(baseval, c.getState());
+            if (Options.get().isBlendedAnalysisEnabled())
+                baseval = UnknownValueResolver.join(c.getAnalysis().getBlendedAnalysis().getBase(baseval, n, c.getState()), c.getState()); // we do not lose precision by joining here, only using objectlabels later
             Set<ObjectLabel> objlabels = baseval.getObjectLabels(); // the ReadPropertyNode has updated baseval to account for ToObject
             Value propertyval;
             if (n.isPropertyFixed()) {
@@ -648,9 +801,9 @@ public class NodeTransfer implements NodeVisitor {
             boolean maybe_null = propertyval.isMaybeNull();
             boolean maybe_nan = propertyval.isMaybeNaN();
             propertyval = propertyval.restrictToNotNullNotUndef().restrictToNotNaN();
-            Str propertystr = Conversion.toString(propertyval, c);
+            Value propertystr = Conversion.toString(propertyval.restrictToNotSymbol(), c).join(Value.makeObject(propertyval.getSymbols()));
             // read the object property value, as fixed property name or unknown property name, and separately for "undefined"/"null"/"NaN"
-            Map<ObjectLabel, Set<ObjectLabel>> target2this = newMap();
+            Map<Pair<Pair<FunctionPartitions, FunctionTypeSignatures>, ObjectLabel>, Set<ObjectLabel>> target2this = newMap();
             List<Value> nonfunctions = newList();
             for (ObjectLabel objlabel : objlabels) { // find possible targets for each possible base object
                 Set<ObjectLabel> singleton = singleton(objlabel);
@@ -661,7 +814,7 @@ public class NodeTransfer implements NodeVisitor {
                 if (propertystr.isMaybeSingleStr()) {
                     String propertyname = propertystr.getStr();
                     v = pv.readPropertyValue(singleton, propertyname);
-                } else if (!propertystr.isNotStr()) {
+                } else if (!propertystr.isNotStr() || propertystr.isMaybeSymbol()) {
                     v = pv.readPropertyValue(singleton, propertystr);
                     read_undefined = propertystr.isMaybeStr("undefined");
                     read_null = propertystr.isMaybeStr("null");
@@ -678,42 +831,47 @@ public class NodeTransfer implements NodeVisitor {
                     v = UnknownValueResolver.join(v, pv.readPropertyValue(singleton, "NaN"), c.getState());
                 }
                 v = UnknownValueResolver.getRealValue(v, c.getState());
-
-                // finally, remove all the TAJS hooks, which are spurious if accessed through a dynamic property
-                if (!n.isPropertyFixed()) {
-                    v = JSGlobal.removeTAJSSpecificFunctions(v);
-                }
-
+                if (Options.get().isBlendedAnalysisEnabled())
+                    v = Value.join(c.getAnalysis().getBlendedAnalysis().getValue(v, Value.makeObject(objlabel), null, n, c.getState())); // we do not lose precision by joining here, only using objectlabels later
                 for (ObjectLabel target : v.getObjectLabels()) {
                     if (target.getKind() == Kind.FUNCTION) {
-                        addToMapSet(target2this, target, objlabel);
+                        addToMapSet(target2this, Pair.make(Pair.make(v.getFunctionPartitions(), v.getFunctionTypeSignatures()), target), objlabel); // the single target function paired with the freeVariablePartitioning is associated with objlabel as 'this' value
                     } else {
                         nonfunctions.add(Value.makeObject(target));
                     }
                 }
-                if (v.isMaybePrimitive()) {
+                if (v.isMaybePrimitiveOrSymbol()) {
                     nonfunctions.add(v.restrictToNotObject());
                 }
             }
             // do calls to each target with the corresponding values of this
-            for (Entry<ObjectLabel, Set<ObjectLabel>> me : target2this.entrySet()) {
-                ObjectLabel target = me.getKey();
+            for (Entry<Pair<Pair<FunctionPartitions, FunctionTypeSignatures>, ObjectLabel>, Set<ObjectLabel>> me : target2this.entrySet()) {
+                FunctionPartitions partitions = me.getKey().getFirst().getFirst();
+                FunctionTypeSignatures signatures = me.getKey().getFirst().getSecond();
+                ObjectLabel target = me.getKey().getSecond();
                 Set<ObjectLabel> this_objs = me.getValue();
-                FunctionCalls.callFunction(new OrdinaryCallInfo(n, c.getState()) {
+                Value thisValue = baseval.restrictToObject(this_objs);
+                Value funval = Value.makeObject(target).addFunctionTypeSignatures(signatures);
+                FunctionCalls.callFunction(new OrdinaryCallInfo(n, c, partitions, signatures) {
 
                     @Override
                     public Value getFunctionValue() {
-                        return Value.makeObject(target);
+                        return funval;
                     }
 
                     @Override
-                    public Set<ObjectLabel> prepareThis(State caller_state, State callee_state) {
-                        return this_objs;
+                    public Value getThis() {
+                        return thisValue;
+                    }
+
+                    @Override
+                    public boolean assumeFunction() {
+                        return filtering.assumeFunction(this_objs, n.getPropertyString());
                     }
                 }, c);
             }
             // also model calls to non-function values
-            FunctionCalls.callFunction(new OrdinaryCallInfo(n, c.getState()) {
+            FunctionCalls.callFunction(new OrdinaryCallInfo(n, c) {
 
                 @Override
                 public Value getFunctionValue() {
@@ -721,8 +879,8 @@ public class NodeTransfer implements NodeVisitor {
                 }
 
                 @Override
-                public Set<ObjectLabel> prepareThis(State caller_state, State callee_state) {
-                    return Collections.emptySet();
+                public Value getThis() {
+                    throw new AnalysisException("Unexpected call to getThis for non-function value");
                 }
             }, c);
         }
@@ -733,7 +891,11 @@ public class NodeTransfer implements NodeVisitor {
      */
     @Override
     public void visit(ReturnNode n) {
-        transferReturn(n.getReturnValueRegister(), n.getBlock(), c.getState(), null, null, false);
+        if (Options.get().isChargedCallsDisabled() || !CallDependencies.DELAY_RETURN_FLOW_UNTIL_DISCHARGED) {
+            transferReturn(n.getReturnValueRegister(), n.getBlock(), c.getState(), null, null, CallKind.ORDINARY);
+        } else { // transferReturn is invoked when the call edges are discharged
+            c.getCallDependencies().registerDelayedReturn(n.getBlock(), c.getState().getContext());
+        }
     }
 
     /**
@@ -741,13 +903,13 @@ public class NodeTransfer implements NodeVisitor {
      *
      * @param caller if non-null, only consider this caller
      */
-    private void transferReturn(int valueReg, BasicBlock block, State state, NodeAndContext<Context> caller, Context edge_context, boolean implicit) {
+    private void transferReturn(int valueReg, BasicBlock block, State state, NodeAndContext<Context> caller, Context edge_context, CallKind callKind) {
         Value v;
         if (valueReg != AbstractNode.NO_VALUE)
             v = state.readRegister(valueReg);
         else
             v = Value.makeUndef();
-        UserFunctionCalls.leaveUserFunction(v, false, block.getFunction(), state, c, caller, edge_context, implicit);
+        UserFunctionCalls.leaveUserFunction(v, false, block.getFunction(), state, c, caller, edge_context, callKind);
     }
 
     /**
@@ -755,7 +917,11 @@ public class NodeTransfer implements NodeVisitor {
      */
     @Override
     public void visit(ExceptionalReturnNode n) {
-        transferExceptionalReturn(n.getBlock(), c.getState(), null, null, false);
+        if (Options.get().isChargedCallsDisabled() || !CallDependencies.DELAY_RETURN_FLOW_UNTIL_DISCHARGED || n.getBlock().getFunction().isMain()) {
+            transferExceptionalReturn(n.getBlock(), c.getState(), null, null, CallKind.ORDINARY);
+        } else { // transferExceptionalReturn is invoked when the call edges are discharged (unless exiting from main)
+            c.getCallDependencies().registerDelayedReturn(n.getBlock(), c.getState().getContext());
+        }
     }
 
     /**
@@ -763,10 +929,10 @@ public class NodeTransfer implements NodeVisitor {
      *
      * @param caller if non-null, only consider this caller
      */
-    private void transferExceptionalReturn(BasicBlock block, State state, NodeAndContext<Context> caller, Context edge_context, boolean implicit) {
+    private void transferExceptionalReturn(BasicBlock block, State state, NodeAndContext<Context> caller, Context edge_context, CallKind callKind) {
         Value v = state.readRegister(AbstractNode.EXCEPTION_REG);
         state.removeRegister(AbstractNode.EXCEPTION_REG);
-        UserFunctionCalls.leaveUserFunction(v, true, block.getFunction(), state, c, caller, edge_context, implicit);
+        UserFunctionCalls.leaveUserFunction(v, true, block.getFunction(), state, c, caller, edge_context, callKind);
     }
 
     /**
@@ -776,7 +942,7 @@ public class NodeTransfer implements NodeVisitor {
     public void visit(ThrowNode n) {
         Value v = c.getState().readRegister(n.getValueRegister());
         Exceptions.throwException(c.getState().clone(), v, c, n);
-        c.getState().setToNone();
+        c.getState().setToBottom();
     }
 
     /**
@@ -789,7 +955,7 @@ public class NodeTransfer implements NodeVisitor {
         if (n.getValueRegister() != AbstractNode.NO_VALUE) {
             c.getState().writeRegister(n.getValueRegister(), v.makeExtendedScope());
         } else {
-            ObjectLabel objlabel = new ObjectLabel(n, Kind.OBJECT);
+            ObjectLabel objlabel = ObjectLabel.make(n, Kind.OBJECT);
             c.getState().newObject(objlabel);
             c.getState().writeInternalPrototype(objlabel, Value.makeObject(InitialStateBuilder.OBJECT_PROTOTYPE));
             pv.writePropertyWithAttributes(objlabel, n.getVariableName(), v.setAttributes(false, true, false));
@@ -815,9 +981,11 @@ public class NodeTransfer implements NodeVisitor {
         v = UnknownValueResolver.getRealValue(v, c.getState());
         Set<ObjectLabel> objs = Conversion.toObjectLabels(n, v, c);
         if (objs.isEmpty() && !Options.get().isPropagateDeadFlow()) {
-            c.getState().setToNone();
+            c.getState().setToBottom();
             return;
         }
+        if (filtering.assumeNotNullUndef(n.getObjectRegister()))
+            return;
         c.getState().pushScopeChain(objs);
     }
 
@@ -827,6 +995,7 @@ public class NodeTransfer implements NodeVisitor {
     @Override
     public void visit(EndWithNode n) {
         c.getState().popScopeChain();
+        c.getState().getMustReachingDefs().setToBottom();
     }
 
     /**
@@ -834,14 +1003,16 @@ public class NodeTransfer implements NodeVisitor {
      */
     @Override
     public void visit(BeginForInNode n) {
+        Value v1 = c.getState().readRegister(n.getObjectRegister());
+        c.getState().writeRegister(n.getObjectRegister(), v1.makeExtendedScope()); // preserve the register value
+        v1 = UnknownValueResolver.getRealValue(v1, c.getState());
+        v1 = v1.restrictToNotNullNotUndef(); // ES5: "If experValue is null or undefined, return (normal, empty, empty)."
+        Set<ObjectLabel> objs = Conversion.toObjectLabels(n, v1, c);
+        ObjProperties p = c.getState().getProperties(objs, ObjProperties.PropertyQuery.makeQuery().onlyEnumerable().usePrototypes());
+
         if (!Options.get().isForInSpecializationDisabled()) {
             // 1. Find properties to iterate through
-            Value v1 = c.getState().readRegister(n.getObjectRegister());
-            c.getState().writeRegister(n.getObjectRegister(), v1.makeExtendedScope()); // preserve the register value
-            v1 = UnknownValueResolver.getRealValue(v1, c.getState());
-            Set<ObjectLabel> objs = Conversion.toObjectLabels(n, v1, c);
-            State.Properties p = c.getState().getEnumProperties(objs);
-            Collection<Value> propertyNameValues = newList(p.toValues());
+            Collection<Value> propertyNameValues = newList(p.getGroupedPropertyNames());
 
             // Add the no-iteration case
             propertyNameValues.add(Value.makeNull().makeExtendedScope());
@@ -859,7 +1030,7 @@ public class NodeTransfer implements NodeVisitor {
                     Context specialized_context = c.getAnalysis().getContextSensitivityStrategy().makeForInEntryContext(c.getState().getContext(), n, k);
 //                    specialized_contexts.add(specialized_context);
                     // 2.2  Propagate specialized context
-                    c.propagateToFunctionEntry(n, c.getState().getContext(), specialized_state, specialized_context, successor, false);
+                    c.propagateToFunctionEntry(n, c.getState().getContext(), new CallEdge(specialized_state, null), specialized_context, successor, CallKind.ORDINARY);
                 }
             }
             if (!c.isScanning()) {
@@ -873,16 +1044,11 @@ public class NodeTransfer implements NodeVisitor {
 
                 // TODO: could kill null flow unless all iterations has reached at least one EndForInNode
             }
-            c.getState().setToNone();
+            c.getState().setToBottom();
         } else { // fall back to simple mode without context specialization
-            Value v1 = c.getState().readRegister(n.getObjectRegister());
-            c.getState().writeRegister(n.getObjectRegister(), v1.makeExtendedScope()); // preserve the register value
-            v1 = UnknownValueResolver.getRealValue(v1, c.getState());
-            Set<ObjectLabel> objs = Conversion.toObjectLabels(n, v1, c);
-            Properties p = c.getState().getEnumProperties(objs);
-            Value proplist = p.toValue().joinNull();
+            Value proplist = Value.join(p.getGroupedPropertyNames());
             m.visitPropertyRead(n, objs, proplist, c.getState(), true);
-            c.getState().writeRegister(n.getPropertyListRegister(), proplist);
+            c.getState().writeRegister(n.getPropertyListRegister(), proplist.joinNull());
         }
     }
 
@@ -891,9 +1057,9 @@ public class NodeTransfer implements NodeVisitor {
      */
     @Override
     public void visit(NextPropertyNode n) {
-        Value property_name = c.getState().readRegister(n.getPropertyListRegister()).restrictToStr(); // restrictToStr to remove Null (the end-of-list marker)
+        Value property_name = c.getState().readRegister(n.getPropertyListRegister()).restrictToNotNull(); // remove Null (the end-of-list marker)
         if (property_name.isNone()) { // possible if branch pruning in EdgeTransfer is disabled
-            c.getState().setToNone();
+            c.getState().setToBottom();
             return;
         }
         c.getState().writeRegister(n.getPropertyRegister(), property_name);
@@ -905,7 +1071,7 @@ public class NodeTransfer implements NodeVisitor {
     @Override
     public void visit(HasNextPropertyNode n) {
         Value v = UnknownValueResolver.getRealValue(c.getState().readRegister(n.getPropertyListRegister()), c.getState());
-        Value res = !v.isNotStr() ? Value.makeBool(true) : Value.makeNone(); // string values represent property names
+        Value res = (!v.isNotStr() || v.isMaybeSymbol()) ? Value.makeBool(true) : Value.makeNone(); // string/symbol values represent property names
         if (v.isMaybeNull()) // null marks end-of-list
             res = res.joinBool(false);
         c.getState().writeRegister(n.getResultRegister(), res);
@@ -916,6 +1082,17 @@ public class NodeTransfer implements NodeVisitor {
      */
     @Override
     public void visit(EndForInNode n) {
+        if (!Options.get().isForInSpecializationDisabled()) {
+            if (Options.get().isChargedCallsDisabled() || !CallDependencies.DELAY_RETURN_FLOW_UNTIL_DISCHARGED) {
+                transferEndForIn(n);
+            } else { // transferEndForIn is invoked when the call edges are discharged
+                c.getCallDependencies().registerDelayedReturn(n.getBlock(), c.getState().getContext());
+            }
+            c.getState().setToBottom();
+        }
+    }
+
+    private void transferEndForIn(EndForInNode n) {
         if (!Options.get().isForInSpecializationDisabled()) {
             if (!c.isScanning()) {
                 // 1. Find successor block, context and base-state
@@ -930,7 +1107,7 @@ public class NodeTransfer implements NodeVisitor {
                     State nonSpecializedMergeState = c.getState().clone();
                     Value returnValue = c.getState().hasReturnRegisterValue() ? c.getState().readRegister(AbstractNode.RETURN_REG) : null;
                     Value exValue = c.getState().hasExceptionRegisterValue() ? c.getState().readRegister(AbstractNode.EXCEPTION_REG) : null;
-                    returnValue = UserFunctionCalls.mergeFunctionReturn(nonSpecializedMergeState, beginState, edgeState, beginEntryState, nonSpecializedMergeState.getSummarized(), returnValue, exValue);
+                    returnValue = UserFunctionCalls.mergeFunctionReturn(nonSpecializedMergeState, beginState, edgeState, beginEntryState, nonSpecializedMergeState.getRenamings(), returnValue, exValue);
                     if (returnValue != null) {
                         nonSpecializedMergeState.writeRegister(AbstractNode.RETURN_REG, returnValue);
                     }
@@ -938,9 +1115,9 @@ public class NodeTransfer implements NodeVisitor {
                     // 3. Propagate only to the non-specialized successor
                     nonSpecializedMergeState.setBasicBlock(c.getState().getBasicBlock().getSingleSuccessor()); // change location so that values will get recovered correctly
                     nonSpecializedMergeState.setContext(beginContext);
+                    UserFunctionCalls.attemptMaterializeVariableObj(nonSpecializedMergeState);
                     c.propagateToBasicBlock(nonSpecializedMergeState, c.getState().getBasicBlock().getSingleSuccessor(), beginContext);
                 }
-                c.getState().setToNone();
             }
         }
     }
@@ -958,7 +1135,7 @@ public class NodeTransfer implements NodeVisitor {
             // branch condition is determinate, switch context and propagate only to specialized successor
             Context specializedContext = c.getAnalysis().getContextSensitivityStrategy().makeNextLoopUnrollingContext(c.getState().getContext(), n);
             c.propagateToBasicBlock(c.getState().clone(), c.getState().getBasicBlock().getSingleSuccessor(), specializedContext);
-            c.getState().setToNone();
+            c.getState().setToBottom();
         } // otherwise, just ordinary propagation like no-op
     }
 
@@ -972,66 +1149,19 @@ public class NodeTransfer implements NodeVisitor {
         // branch condition is determinate, switch context and propagate only to generalized successor
         Context generalizedContext = c.getAnalysis().getContextSensitivityStrategy().makeLoopExitContext(c.getState().getContext(), n);
         c.propagateToBasicBlock(c.getState().clone(), c.getState().getBasicBlock().getSingleSuccessor(), generalizedContext);
-        c.getState().setToNone();
+        c.getState().setToBottom();
     }
 
     /**
-     * Assumption.
+     * Event dispatch.
      */
     @Override
-    public void visit(AssumeNode n) {
-        if (Options.get().isControlSensitivityDisabled())
-            return;
-        switch (n.getKind()) {
-
-            case VARIABLE_NON_NULL_UNDEF: {
-                Value v = pv.readVariable(n.getVariableName(), null);
-                v = UnknownValueResolver.getRealValue(v, c.getState()); // TODO: limits use of polymorphic values?
-                v = v.restrictToNotNullNotUndef().restrictToNotAbsent();
-                if (v.isNotPresent() && !Options.get().isPropagateDeadFlow())
-                    c.getState().setToNone();
-                else
-                    pv.writeVariable(n.getVariableName(), v, false);
-                break;
-            }
-
-            case PROPERTY_NON_NULL_UNDEF: {
-                String propname;
-                if (n.isPropertyFixed())
-                    propname = n.getPropertyString();
-                else {
-                    Value propval = c.getState().readRegister(n.getPropertyRegister());
-                    propval = UnknownValueResolver.getRealValue(propval, c.getState()); // TODO: limits use of polymorphic values?
-                    if (!propval.isMaybeSingleStr() || propval.isMaybeOtherThanStr())
-                        break; // safe to do nothing here if it gets complicated
-                    propname = propval.getStr();
-                }
-                Set<ObjectLabel> baseobjs = Conversion.toObjectLabels(n, c.getState().readRegister(n.getBaseRegister()), null); // TODO: omitting side-effects here
-                Value v = pv.readPropertyWithAttributes(baseobjs, propname);
-                if (v.isNotPresent() && !Options.get().isPropagateDeadFlow())
-                    c.getState().setToNone();
-                else if (baseobjs.size() == 1 && baseobjs.iterator().next().isSingleton()) {
-                    v = UnknownValueResolver.getRealValue(v, c.getState()); // TODO: limits use of polymorphic values?
-                    v = v.restrictToNotNullNotUndef().restrictToNotAbsent();
-                    pv.writePropertyWithAttributes(baseobjs, propname, v, false);
-                }
-                break;
-            }
-
-            case UNREACHABLE: {
-                if (Options.get().isIgnoreUnreachableEnabled()) {
-                    c.getState().setToNone();
-                }
-                break;
-            }
-
-            default:
-                throw new AnalysisException("Unhandled AssumeNode kind: " + n.getKind());
-        }
-    }
-
-    @Override
     public void visit(EventDispatcherNode n) {
-        DOMEventLoop.get().multipleNondeterministicEventLoops(n, c.getState(), c);
+        if (Options.get().isDOMEnabled()) {
+            DOMEvents.emit(n, c);
+        }
+        if (Options.get().isAsyncEventsEnabled()) {
+            AsyncEvents.emit(n, c);
+        }
     }
 }

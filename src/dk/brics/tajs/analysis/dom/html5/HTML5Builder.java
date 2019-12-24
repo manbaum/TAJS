@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import static dk.brics.tajs.analysis.dom.DOMFunctions.createDOMProperty;
 
 public class HTML5Builder {
 
-    public static final Set<ObjectLabel> HTML5_OBJECT_LABELS = Collections.newSet();
+    public static Set<ObjectLabel> HTML5_OBJECT_LABELS;
 
     public static void build(Solver.SolverInterface c) {
         CanvasRenderingContext2D.build(c);
@@ -44,11 +44,17 @@ public class HTML5Builder {
         OscillatorNode.build(c);
         ScriptProcessorNode.build(c);
         AudioContext.build(c);
+        MediaQueryList.build(c);
+        OfflineResourceList.build(c);
+        MutationObserver.build(c);
+        Worker.build(c);
 
         // HTML5 properties on Window
         createDOMProperty(DOMWindow.WINDOW, "localStorage", Value.makeObject(StorageElement.INSTANCES), c);
         createDOMProperty(DOMWindow.WINDOW, "sessionStorage", Value.makeObject(StorageElement.INSTANCES), c);
+        createDOMProperty(DOMWindow.WINDOW, "applicationCache", Value.makeObject(OfflineResourceList.INSTANCES), c);
 
+        HTML5_OBJECT_LABELS = Collections.newSet();
         HTML5_OBJECT_LABELS.add(HTMLCanvasElement.INSTANCES);
         HTML5_OBJECT_LABELS.add(HTMLAudioElement.INSTANCES);
     }

@@ -1,3 +1,19 @@
+/*
+ * Copyright 2009-2019 Aarhus University
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package dk.brics.tajs.js2flowgraph;
 
 import dk.brics.tajs.flowgraph.BasicBlock;
@@ -98,7 +114,7 @@ public class FunctionAndBlockManager {
     /**
      * Marks the start of a session.
      * Blocks created in this session can be extracted later with
-     * {@link #getSessionBlocks(FunctionAndBlockManager.SessionKey)}.
+     * {@link #getSessionBlocks(SessionKey)}.
      * Sessions do not have to nest properly.
      *
      * @return a unique key identifying the session.
@@ -120,7 +136,7 @@ public class FunctionAndBlockManager {
 
     /**
      * Returns the blocks produced between a call to {@link #startSession()} and
-     * {@link #endSession(FunctionAndBlockManager.SessionKey)}
+     * {@link #endSession(SessionKey)}
      */
     Collection<BasicBlock> getSessionBlocks(SessionKey key) {
         if (activeSessions.contains(key)) {

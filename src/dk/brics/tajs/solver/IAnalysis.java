@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,9 @@
 
 package dk.brics.tajs.solver;
 
+import dk.brics.tajs.blendedanalysis.solver.BlendedAnalysisManager;
 import dk.brics.tajs.flowgraph.FlowGraph;
+import dk.brics.tajs.typetesting.ITypeTester;
 
 /**
  * Interface for analyses on flow graphs.
@@ -33,6 +35,11 @@ public interface IAnalysis<StateType extends IState<StateType, ContextType, Call
     IAnalysisLatticeElement<StateType, ContextType, CallEdgeType> makeAnalysisLattice(FlowGraph fg);
 
     /**
+     * Initializes the context sensitivity heuristics.
+     */
+    void initContextSensitivity(FlowGraph fg);
+
+    /**
      * Returns the initial state builder.
      */
     IInitialStateBuilder<StateType, ContextType, CallEdgeType, MonitoringType, AnalysisType> getInitialStateBuilder();
@@ -45,12 +52,12 @@ public interface IAnalysis<StateType extends IState<StateType, ContextType, Call
     /**
      * Returns the edge transfer functions.
      */
-    IEdgeTransfer<StateType, ContextType> getEdgeTransferFunctions();
+    IEdgeTransfer<ContextType> getEdgeTransferFunctions();
 
     /**
-     * Returns the work list strategy.
+     * Returns the blended analysis component.
      */
-    IWorkListStrategy<ContextType> getWorklistStrategy();
+    BlendedAnalysisManager getBlendedAnalysis();
 
     /**
      * Returns the monitoring object.
@@ -63,8 +70,12 @@ public interface IAnalysis<StateType extends IState<StateType, ContextType, Call
     void setSolverInterface(GenericSolver<StateType, ContextType, CallEdgeType, MonitoringType, AnalysisType>.SolverInterface c);
 
     /**
-     * Constructs a new call edge for the given abstract state.
+     * Creates a copy of this edge with a cloned abstract state.
      */
-    CallEdgeType makeCallEdge(StateType edge_state);
+    CallEdgeType cloneCallEdge(CallEdgeType edge);
 
+    /**
+     * Returns the type tester, or null if not available.
+     */
+    ITypeTester<ContextType> getTypeTester();
 }

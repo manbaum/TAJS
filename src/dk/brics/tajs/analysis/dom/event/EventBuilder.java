@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 package dk.brics.tajs.analysis.dom.event;
 
 import dk.brics.tajs.analysis.Solver;
-import dk.brics.tajs.lattice.State;
 
 /**
  * Initial State Builder for DOM Events.
@@ -36,9 +35,14 @@ public class EventBuilder {
         EventTarget.build(c);
         EventListener.build(c);
         EventException.build(c);
+
+        // Other Events that "inherit" from Event
+        CustomEvent.build(c);
         DocumentEvent.build(c);
+        HashChangeEvent.build(c);
         MutationEvent.build(c);
         UIEvent.build(c);
+        CompositionEvent.build(c); // Must be after UIEvent
         KeyboardEvent.build(c);
         MouseEvent.build(c);
         WheelEvent.build(c);

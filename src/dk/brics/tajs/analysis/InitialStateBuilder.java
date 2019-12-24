@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,11 +17,8 @@
 package dk.brics.tajs.analysis;
 
 import dk.brics.tajs.analysis.dom.DOMBuilder;
-import dk.brics.tajs.analysis.dom.DOMEvents;
 import dk.brics.tajs.analysis.nativeobjects.ECMAScriptObjects;
 import dk.brics.tajs.flowgraph.BasicBlock;
-import dk.brics.tajs.flowgraph.EventHandlerKind;
-import dk.brics.tajs.flowgraph.Function;
 import dk.brics.tajs.lattice.CallEdge;
 import dk.brics.tajs.lattice.Context;
 import dk.brics.tajs.lattice.ExecutionContext;
@@ -34,13 +31,12 @@ import dk.brics.tajs.lattice.Value;
 import dk.brics.tajs.monitoring.IAnalysisMonitoring;
 import dk.brics.tajs.options.Options;
 import dk.brics.tajs.solver.IInitialStateBuilder;
-import dk.brics.tajs.util.AnalysisException;
 import dk.brics.tajs.util.Collections;
 import net.htmlparser.jericho.Source;
 
-import java.util.Collection;
-import java.util.Map.Entry;
+import java.util.Set;
 
+import static dk.brics.tajs.util.Collections.newSet;
 import static dk.brics.tajs.util.Collections.singleton;
 
 /**
@@ -51,139 +47,233 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
     /**
      * Object label for the global object.
      */
-    public static final ObjectLabel GLOBAL = new ObjectLabel(ECMAScriptObjects.GLOBAL, Kind.OBJECT);
+    public static ObjectLabel GLOBAL;
 
     /**
      * Object label for Object.prototype.
      */
-    public static final ObjectLabel OBJECT_PROTOTYPE = new ObjectLabel(ECMAScriptObjects.OBJECT_PROTOTYPE, Kind.OBJECT);
+    public static ObjectLabel OBJECT_PROTOTYPE;
 
     /**
      * Object label for Function.prototype.
      */
-    public static final ObjectLabel FUNCTION_PROTOTYPE = new ObjectLabel(ECMAScriptObjects.FUNCTION_PROTOTYPE, Kind.FUNCTION);
+    public static ObjectLabel FUNCTION_PROTOTYPE;
 
     /**
      * Object label for Array.prototype.
      */
-    public static final ObjectLabel ARRAY_PROTOTYPE = new ObjectLabel(ECMAScriptObjects.ARRAY_PROTOTYPE, Kind.ARRAY);
+    public static ObjectLabel ARRAY_PROTOTYPE;
 
     /**
      * Object label for String.prototype.
      */
-    public static final ObjectLabel STRING_PROTOTYPE = new ObjectLabel(ECMAScriptObjects.STRING_PROTOTYPE, Kind.STRING);
+    public static ObjectLabel STRING_PROTOTYPE;
 
     /**
      * Object label for Boolean.prototype.
      */
-    public static final ObjectLabel BOOLEAN_PROTOTYPE = new ObjectLabel(ECMAScriptObjects.BOOLEAN_PROTOTYPE, Kind.BOOLEAN);
+    public static ObjectLabel BOOLEAN_PROTOTYPE;
 
     /**
      * Object label for Number.prototype.
      */
-    public static final ObjectLabel NUMBER_PROTOTYPE = new ObjectLabel(ECMAScriptObjects.NUMBER_PROTOTYPE, Kind.NUMBER);
+    public static ObjectLabel NUMBER_PROTOTYPE;
 
     /**
      * Object label for Date.prototype.
      */
-    public static final ObjectLabel DATE_PROTOTYPE = new ObjectLabel(ECMAScriptObjects.DATE_PROTOTYPE, Kind.DATE);
+    public static ObjectLabel DATE_PROTOTYPE;
+
+    /**
+     * Object label for Proxy.prototype.
+     */
+    public static ObjectLabel PROXY_PROTOTYPE;
 
     /**
      * Object label for RegExp.prototype.
      */
-    public static final ObjectLabel REGEXP_PROTOTYPE = new ObjectLabel(ECMAScriptObjects.REGEXP_PROTOTYPE, Kind.OBJECT);
+    public static ObjectLabel REGEXP_PROTOTYPE;
     /* From ES5, Annex D:
      RegExp.prototype is now a RegExp object rather than an instance of Object. The value of its [[Class]] internal 
      property which is observable using Object.prototype.toString is now 'RegExp' rather than 'Object'.
      */ // TODO: use ES5 semantics of RegExp.prototype object kind?
 
     /**
+     * Object label for Symbol.prototype.
+     */
+    public static ObjectLabel SYMBOL_PROTOTYPE;
+
+    /**
      * Object label for Error.prototype.
      */
-    public static final ObjectLabel ERROR_PROTOTYPE = new ObjectLabel(ECMAScriptObjects.ERROR_PROTOTYPE, Kind.ERROR);
+    public static ObjectLabel ERROR_PROTOTYPE;
 
     /**
      * Object label for EvalError.prototype.
      */
-    public static final ObjectLabel EVAL_ERROR_PROTOTYPE = new ObjectLabel(ECMAScriptObjects.EVAL_ERROR_PROTOTYPE, Kind.ERROR);
+    public static ObjectLabel EVAL_ERROR_PROTOTYPE;
 
     /**
      * Object label for RangeError.prototype.
      */
-    public static final ObjectLabel RANGE_ERROR_PROTOTYPE = new ObjectLabel(ECMAScriptObjects.RANGE_ERROR_PROTOTYPE, Kind.ERROR);
+    public static ObjectLabel RANGE_ERROR_PROTOTYPE;
 
     /**
      * Object label for ReferenceError.prototype.
      */
-    public static final ObjectLabel REFERENCE_ERROR_PROTOTYPE = new ObjectLabel(ECMAScriptObjects.REFERENCE_ERROR_PROTOTYPE, Kind.ERROR);
+    public static ObjectLabel REFERENCE_ERROR_PROTOTYPE;
 
     /**
      * Object label for SyntaxError.prototype.
      */
-    public static final ObjectLabel SYNTAX_ERROR_PROTOTYPE = new ObjectLabel(ECMAScriptObjects.SYNTAX_ERROR_PROTOTYPE, Kind.ERROR);
+    public static ObjectLabel SYNTAX_ERROR_PROTOTYPE;
 
     /**
      * Object label for TypeError.prototype.
      */
-    public static final ObjectLabel TYPE_ERROR_PROTOTYPE = new ObjectLabel(ECMAScriptObjects.TYPE_ERROR_PROTOTYPE, Kind.ERROR);
+    public static ObjectLabel TYPE_ERROR_PROTOTYPE;
 
     /**
      * Object label for URIError.prototype.
      */
-    public static final ObjectLabel URI_ERROR_PROTOTYPE = new ObjectLabel(ECMAScriptObjects.URI_ERROR_PROTOTYPE, Kind.ERROR);
+    public static ObjectLabel URI_ERROR_PROTOTYPE;
+
+    /**
+     * Object label for JSON object
+     */
+    public static ObjectLabel JSON_OBJECT;
+
+    /**
+     * Well-known EC6 Symbols
+     */
+    public static ObjectLabel UNKNOWN_SYMBOL_INSTANCES;
+    public static ObjectLabel WELLKNOWN_SYMBOL_HAS_INSTANCE;
+    public static ObjectLabel WELLKNOWN_SYMBOL_IS_CONCAT_SPREADABLE;
+    public static ObjectLabel WELLKNOWN_SYMBOL_ITERATOR;
+    public static ObjectLabel WELLKNOWN_SYMBOL_MATCH;
+    public static ObjectLabel WELLKNOWN_SYMBOL_REPLACE;
+    public static ObjectLabel WELLKNOWN_SYMBOL_SEARCH;
+    public static ObjectLabel WELLKNOWN_SYMBOL_SPECIES;
+    public static ObjectLabel WELLKNOWN_SYMBOL_SPLIT;
+    public static ObjectLabel WELLKNOWN_SYMBOL_TO_PRIMITIVE;
+    public static ObjectLabel WELLKNOWN_SYMBOL_TO_STRING_TAG;
+    public static ObjectLabel WELLKNOWN_SYMBOL_UNSCOPABLES;
 
     /**
      * Constructs a new InitialStateBuilder object.
      */
     public InitialStateBuilder() {
+        reset();
+    }
+
+    public static void reset() {
+        GLOBAL = ObjectLabel.make(ECMAScriptObjects.GLOBAL, Kind.OBJECT);
+        OBJECT_PROTOTYPE = ObjectLabel.make(ECMAScriptObjects.OBJECT_PROTOTYPE, Kind.OBJECT);
+        FUNCTION_PROTOTYPE = ObjectLabel.make(ECMAScriptObjects.FUNCTION_PROTOTYPE, Kind.FUNCTION);
+        ARRAY_PROTOTYPE = ObjectLabel.make(ECMAScriptObjects.ARRAY_PROTOTYPE, Kind.ARRAY);
+        STRING_PROTOTYPE = ObjectLabel.make(ECMAScriptObjects.STRING_PROTOTYPE, Kind.STRING); // FIXME: as of ES6, String.prototype is an ordinary object, not a string object -- but not yet supported by Chrome... (GitHub #351)
+        BOOLEAN_PROTOTYPE = ObjectLabel.make(ECMAScriptObjects.BOOLEAN_PROTOTYPE, Kind.BOOLEAN);
+        NUMBER_PROTOTYPE = ObjectLabel.make(ECMAScriptObjects.NUMBER_PROTOTYPE, Kind.NUMBER);
+        DATE_PROTOTYPE = ObjectLabel.make(ECMAScriptObjects.DATE_PROTOTYPE, Kind.DATE);
+        PROXY_PROTOTYPE = ObjectLabel.make(ECMAScriptObjects.PROXY_PROTOTYPE, Kind.OBJECT);
+        REGEXP_PROTOTYPE = ObjectLabel.make(ECMAScriptObjects.REGEXP_PROTOTYPE, Kind.OBJECT);
+        SYMBOL_PROTOTYPE = ObjectLabel.make(ECMAScriptObjects.SYMBOL_PROTOTYPE, Kind.OBJECT);
+        ERROR_PROTOTYPE = ObjectLabel.make(ECMAScriptObjects.ERROR_PROTOTYPE, Kind.ERROR);
+        EVAL_ERROR_PROTOTYPE = ObjectLabel.make(ECMAScriptObjects.EVAL_ERROR_PROTOTYPE, Kind.ERROR);
+        RANGE_ERROR_PROTOTYPE = ObjectLabel.make(ECMAScriptObjects.RANGE_ERROR_PROTOTYPE, Kind.ERROR);
+        REFERENCE_ERROR_PROTOTYPE = ObjectLabel.make(ECMAScriptObjects.REFERENCE_ERROR_PROTOTYPE, Kind.ERROR);
+        SYNTAX_ERROR_PROTOTYPE = ObjectLabel.make(ECMAScriptObjects.SYNTAX_ERROR_PROTOTYPE, Kind.ERROR);
+        TYPE_ERROR_PROTOTYPE = ObjectLabel.make(ECMAScriptObjects.TYPE_ERROR_PROTOTYPE, Kind.ERROR);
+        URI_ERROR_PROTOTYPE = ObjectLabel.make(ECMAScriptObjects.URI_ERROR_PROTOTYPE, Kind.ERROR);
+        JSON_OBJECT = ObjectLabel.make(ECMAScriptObjects.JSON, Kind.OBJECT);
+        UNKNOWN_SYMBOL_INSTANCES = ObjectLabel.make(ECMAScriptObjects.SYMBOL_INSTANCES, Kind.SYMBOL);
+        WELLKNOWN_SYMBOL_HAS_INSTANCE = ObjectLabel.make(ECMAScriptObjects.SYMBOL_HAS_INSTANCE, Kind.SYMBOL);
+        WELLKNOWN_SYMBOL_IS_CONCAT_SPREADABLE = ObjectLabel.make(ECMAScriptObjects.SYMBOL_IS_CONCAT_SPREADABLE, Kind.SYMBOL);
+        WELLKNOWN_SYMBOL_ITERATOR = ObjectLabel.make(ECMAScriptObjects.SYMBOL_ITERATOR, Kind.SYMBOL);
+        WELLKNOWN_SYMBOL_MATCH = ObjectLabel.make(ECMAScriptObjects.SYMBOL_MATCH, Kind.SYMBOL);
+        WELLKNOWN_SYMBOL_REPLACE = ObjectLabel.make(ECMAScriptObjects.SYMBOL_REPLACE, Kind.SYMBOL);
+        WELLKNOWN_SYMBOL_SEARCH = ObjectLabel.make(ECMAScriptObjects.SYMBOL_SEARCH, Kind.SYMBOL);
+        WELLKNOWN_SYMBOL_SPECIES = ObjectLabel.make(ECMAScriptObjects.SYMBOL_SPECIES, Kind.SYMBOL);
+        WELLKNOWN_SYMBOL_SPLIT = ObjectLabel.make(ECMAScriptObjects.SYMBOL_SPLIT, Kind.SYMBOL);
+        WELLKNOWN_SYMBOL_TO_PRIMITIVE = ObjectLabel.make(ECMAScriptObjects.SYMBOL_TO_PRIMITIVE, Kind.SYMBOL);
+        WELLKNOWN_SYMBOL_TO_STRING_TAG = ObjectLabel.make(ECMAScriptObjects.SYMBOL_TO_STRING_TAG, Kind.SYMBOL);
+        WELLKNOWN_SYMBOL_UNSCOPABLES = ObjectLabel.make(ECMAScriptObjects.SYMBOL_UNSCOPABLES, Kind.SYMBOL);
     }
 
     /**
      * Sets up the initial state.
      */
     @Override
-    public void addInitialState(BasicBlock global_entry_block, Solver.SolverInterface c, Source document) {
-        State s = new State(c, global_entry_block);
-        c.setState(s);
+    public State build(BasicBlock global_entry_block, Solver.SolverInterface c, Source document) {
+        // make empty state
+        State initialState = new State(c, global_entry_block);
+        initialState.setContext(c.getAnalysis().getContextSensitivityStrategy().makeInitialContext());
+
+//        // TODO: include top-level in stacked_funentries?
+//        Set<BlockAndContext<Context>> fs = newSet();
+//        fs.add(new BlockAndContext<>(initialState.getBasicBlock(), initialState.getContext()));
+//        initialState.setStacked(null, fs);
+
+        // add to the state
+        c.withState(initialState, () -> {
+            buildECMAInitialState(c);
+            if (Options.get().isDOMEnabled()) {
+                DOMBuilder.build(document, c);
+            }
+        });
+
+        // cleanup
+        initialState.clearEffects();
+        initialState.freezeBasisStore();
+        return initialState;
+    }
+
+    private void buildECMAInitialState(Solver.SolverInterface c) {
+        State s = c.getState();
         PropVarOperations pv = c.getAnalysis().getPropVarOperations();
         ObjectLabel global = GLOBAL; // same as DOMBuilder.WINDOW
         s.newObject(global);
+        s.setExecutionContext(new ExecutionContext(ScopeChain.make(global), singleton(global), Value.makeObject(global)));
 
-        ObjectLabel lObject = new ObjectLabel(ECMAScriptObjects.OBJECT, Kind.FUNCTION);
+        ObjectLabel lObject = ObjectLabel.make(ECMAScriptObjects.OBJECT, Kind.FUNCTION);
         s.newObject(lObject);
-        ObjectLabel lFunction = new ObjectLabel(ECMAScriptObjects.FUNCTION, Kind.FUNCTION);
+        ObjectLabel lFunction = ObjectLabel.make(ECMAScriptObjects.FUNCTION, Kind.FUNCTION);
         s.newObject(lFunction);
-        ObjectLabel lArray = new ObjectLabel(ECMAScriptObjects.ARRAY, Kind.FUNCTION);
+        ObjectLabel lArray = ObjectLabel.make(ECMAScriptObjects.ARRAY, Kind.FUNCTION);
         s.newObject(lArray);
-        ObjectLabel lString = new ObjectLabel(ECMAScriptObjects.STRING, Kind.FUNCTION);
+        ObjectLabel lString = ObjectLabel.make(ECMAScriptObjects.STRING, Kind.FUNCTION);
         s.newObject(lString);
-        ObjectLabel lBoolean = new ObjectLabel(ECMAScriptObjects.BOOLEAN, Kind.FUNCTION);
+        ObjectLabel lBoolean = ObjectLabel.make(ECMAScriptObjects.BOOLEAN, Kind.FUNCTION);
         s.newObject(lBoolean);
-        ObjectLabel lNumber = new ObjectLabel(ECMAScriptObjects.NUMBER, Kind.FUNCTION);
+        ObjectLabel lNumber = ObjectLabel.make(ECMAScriptObjects.NUMBER, Kind.FUNCTION);
         s.newObject(lNumber);
-        ObjectLabel lDate = new ObjectLabel(ECMAScriptObjects.DATE, Kind.FUNCTION);
+        ObjectLabel lDate = ObjectLabel.make(ECMAScriptObjects.DATE, Kind.FUNCTION);
         s.newObject(lDate);
-        ObjectLabel lRegExp = new ObjectLabel(ECMAScriptObjects.REGEXP, Kind.FUNCTION);
+        ObjectLabel lProxy = ObjectLabel.make(ECMAScriptObjects.PROXY, Kind.FUNCTION);
+        s.newObject(lProxy);
+        ObjectLabel lRegExp = ObjectLabel.make(ECMAScriptObjects.REGEXP, Kind.FUNCTION);
         s.newObject(lRegExp);
-        ObjectLabel lError = new ObjectLabel(ECMAScriptObjects.ERROR, Kind.FUNCTION);
+        ObjectLabel lSymb = ObjectLabel.make(ECMAScriptObjects.SYMBOL, Kind.FUNCTION);
+        s.newObject(lSymb);
+        ObjectLabel lError = ObjectLabel.make(ECMAScriptObjects.ERROR, Kind.FUNCTION);
         s.newObject(lError);
-        ObjectLabel lEvalError = new ObjectLabel(ECMAScriptObjects.EVAL_ERROR, Kind.FUNCTION);
+        ObjectLabel lEvalError = ObjectLabel.make(ECMAScriptObjects.EVAL_ERROR, Kind.FUNCTION);
         s.newObject(lEvalError);
-        ObjectLabel lRangeError = new ObjectLabel(ECMAScriptObjects.RANGE_ERROR, Kind.FUNCTION);
+        ObjectLabel lRangeError = ObjectLabel.make(ECMAScriptObjects.RANGE_ERROR, Kind.FUNCTION);
         s.newObject(lRangeError);
-        ObjectLabel lReferenceError = new ObjectLabel(ECMAScriptObjects.REFERENCE_ERROR, Kind.FUNCTION);
+        ObjectLabel lReferenceError = ObjectLabel.make(ECMAScriptObjects.REFERENCE_ERROR, Kind.FUNCTION);
         s.newObject(lReferenceError);
-        ObjectLabel lSyntaxError = new ObjectLabel(ECMAScriptObjects.SYNTAX_ERROR, Kind.FUNCTION);
+        ObjectLabel lSyntaxError = ObjectLabel.make(ECMAScriptObjects.SYNTAX_ERROR, Kind.FUNCTION);
         s.newObject(lSyntaxError);
-        ObjectLabel lTypeError = new ObjectLabel(ECMAScriptObjects.TYPE_ERROR, Kind.FUNCTION);
+        ObjectLabel lTypeError = ObjectLabel.make(ECMAScriptObjects.TYPE_ERROR, Kind.FUNCTION);
         s.newObject(lTypeError);
-        ObjectLabel lURIError = new ObjectLabel(ECMAScriptObjects.URI_ERROR, Kind.FUNCTION);
+        ObjectLabel lURIError = ObjectLabel.make(ECMAScriptObjects.URI_ERROR, Kind.FUNCTION);
         s.newObject(lURIError);
 
-        ObjectLabel lMath = new ObjectLabel(ECMAScriptObjects.MATH, Kind.MATH);
+        ObjectLabel lMath = ObjectLabel.make(ECMAScriptObjects.MATH, Kind.MATH);
         s.newObject(lMath);
 
-        ObjectLabel lJson = new ObjectLabel(ECMAScriptObjects.JSON, Kind.OBJECT);
+        ObjectLabel lJson = JSON_OBJECT;
         s.newObject(lJson);
 
         ObjectLabel lObjectPrototype = OBJECT_PROTOTYPE;
@@ -200,8 +290,12 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
         s.newObject(lNumberProto);
         ObjectLabel lDateProto = DATE_PROTOTYPE;
         s.newObject(lDateProto);
+        ObjectLabel lProxyProto = PROXY_PROTOTYPE;
+        s.newObject(lProxyProto);
         ObjectLabel lRegExpProto = REGEXP_PROTOTYPE;
         s.newObject(lRegExpProto);
+        ObjectLabel lSymbProto = SYMBOL_PROTOTYPE;
+        s.newObject(lSymbProto);
         ObjectLabel lErrorProto = ERROR_PROTOTYPE;
         s.newObject(lErrorProto);
         ObjectLabel lEvalErrorProto = EVAL_ERROR_PROTOTYPE;
@@ -220,7 +314,7 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
         // 15.1.1 value properties of the global object
         pv.writePropertyWithAttributes(global, "NaN", Value.makeNum(Double.NaN).setAttributes(true, true, false));
         pv.writePropertyWithAttributes(global, "Infinity", Value.makeNum(Double.POSITIVE_INFINITY).setAttributes(true, true, false));
-        pv.writePropertyWithAttributes(global, "undefined", Value.makeUndef().setAttributes(true, true, false));
+        pv.writePropertyWithAttributes(global, "undefined", Value.makeUndef().setAttributes(true, true, true));
         // TODO: 15.1 the values of the [[Prototype]] and [[Class]] properties of the global object are implementation-dependent
         s.writeInternalPrototype(global, Value.makeObject(lObjectPrototype)); // Rhino's implementation choice
 
@@ -258,26 +352,34 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
         createPrimitiveConstructor(global, lFunProto, lTypeErrorProto, lTypeError, "TypeError", 1, c);
         createPrimitiveConstructor(global, lFunProto, lURIErrorProto, lURIError, "URIError", 1, c);
 
+        // EC6 Symbol
+        createPrimitiveConstructor(global, lFunProto, lSymbProto, lSymb, "Symbol", 1, c);
+
         pv.writePropertyWithAttributes(global, "JSON", Value.makeObject(lJson).setAttributes(true, false, false));
         createPrimitiveFunction(lJson, lFunProto, ECMAScriptObjects.JSON_PARSE, "parse", 1, c);
         createPrimitiveFunction(lJson, lFunProto, ECMAScriptObjects.JSON_STRINGIFY, "stringify", 1, c);
         
-        
+
         // 15.2.3 Properties of the Object Constructor
         createPrimitiveFunction(lObject, lFunProto, ECMAScriptObjects.OBJECT_DEFINE_PROPERTY, "defineProperty", 3, c);
         createPrimitiveFunction(lObject, lFunProto, ECMAScriptObjects.OBJECT_CREATE, "create", 1, c);
-        createPrimitiveFunction(lObject, lFunProto, ECMAScriptObjects.OBJECT_DEFINEPPROPERTIES, "defineProperties", 1, c);
+        createPrimitiveFunction(lObject, lFunProto, ECMAScriptObjects.OBJECT_DEFINE_PROPERTIES, "defineProperties", 2, c);
         createPrimitiveFunction(lObject, lFunProto, ECMAScriptObjects.OBJECT_FREEZE, "freeze", 1, c);
         createPrimitiveFunction(lObject, lFunProto, ECMAScriptObjects.OBJECT_GETOWNPROPERTYDESCRIPTOR, "getOwnPropertyDescriptor", 1, c);//
         createPrimitiveFunction(lObject, lFunProto, ECMAScriptObjects.OBJECT_GETPROTOTYPEOF, "getPrototypeOf", 1, c);
+        createPrimitiveFunction(lObject, lFunProto, ECMAScriptObjects.OBJECT_SETPROTOTYPEOF, "setPrototypeOf", 2, c);
         createPrimitiveFunction(lObject, lFunProto, ECMAScriptObjects.OBJECT_ISEXTENSIBLE, "isExtensible", 1, c);
         createPrimitiveFunction(lObject, lFunProto, ECMAScriptObjects.OBJECT_ISFROZEN, "isFrozen", 1, c);
         createPrimitiveFunction(lObject, lFunProto, ECMAScriptObjects.OBJECT_ISSEALED, "isSealed", 1, c);
         createPrimitiveFunction(lObject, lFunProto, ECMAScriptObjects.OBJECT_KEYS, "keys", 1, c);
         createPrimitiveFunction(lObject, lFunProto, ECMAScriptObjects.OBJECT_PREVENTEXTENSIONS, "preventExtensions", 1, c);
         createPrimitiveFunction(lObject, lFunProto, ECMAScriptObjects.OBJECT_SEAL, "seal", 1, c);
-        createPrimitiveFunction(lObject, lFunProto, ECMAScriptObjects.OBJECT_GETOWNPROPERTYNAMES, "getOwnPropertyNames", 0, c);
-        
+        createPrimitiveFunction(lObject, lFunProto, ECMAScriptObjects.OBJECT_GETOWNPROPERTYNAMES, "getOwnPropertyNames", 1, c);
+        createPrimitiveFunction(lObject, lFunProto, ECMAScriptObjects.OBJECT_IS, "is", 2, c);
+        createPrimitiveFunction(lObject, lFunProto, ECMAScriptObjects.OBJECT_ASSIGN, "assign", 2, c);
+        createPrimitiveFunction(lObject, lFunProto, ECMAScriptObjects.OBJECT_GETOWNPROPERTYSYMBOLS, "getOwnPropertySymbols", 1, c);
+        createPrimitiveFunction(lObject, lFunProto, ECMAScriptObjects.OBJECT_VALUES, "values", 1, c);
+
         // 15.2.4 properties of the Object prototype object
         s.writeInternalPrototype(lObjectPrototype, Value.makeNull());
         pv.writePropertyWithAttributes(lObjectPrototype, "constructor", Value.makeObject(lObject).setAttributes(true, false, false));
@@ -287,15 +389,17 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
         createPrimitiveFunction(lObjectPrototype, lFunProto, ECMAScriptObjects.OBJECT_HASOWNPROPERTY, "hasOwnProperty", 1, c);
         createPrimitiveFunction(lObjectPrototype, lFunProto, ECMAScriptObjects.OBJECT_ISPROTOTYPEOF, "isPrototypeOf", 1, c);
         createPrimitiveFunction(lObjectPrototype, lFunProto, ECMAScriptObjects.OBJECT_PROPERTYISENUMERABLE, "propertyIsEnumerable", 1, c);
-        
+        createPrimitiveFunction(lObjectPrototype, lFunProto, ECMAScriptObjects.OBJECT_DEFINEGETTER, "__defineGetter__", 2, c);
+        createPrimitiveFunction(lObjectPrototype, lFunProto, ECMAScriptObjects.OBJECT_DEFINESETTER, "__defineSetter__", 2, c);
+
         // 15.3.4 properties of the Function prototype object
         s.writeInternalPrototype(lFunProto, Value.makeObject(lObjectPrototype));
         pv.writePropertyWithAttributes(lFunProto, "constructor", Value.makeObject(lFunction).setAttributes(true, false, false));
-        pv.writePropertyWithAttributes(lFunProto, "length", Value.makeNum(0).setAttributes(true, true, true));
+        pv.writePropertyWithAttributes(lFunProto, "length", Value.makeNum(0).setAttributes(true, false, true));
+        pv.writePropertyWithAttributes(lFunProto, "name", Value.makeStr("").setAttributes(true, true, true));
         createPrimitiveFunction(lFunProto, lFunProto, ECMAScriptObjects.FUNCTION_TOSTRING, "toString", 0, c);
         createPrimitiveFunction(lFunProto, lFunProto, ECMAScriptObjects.FUNCTION_APPLY, "apply", 2, c);
         createPrimitiveFunction(lFunProto, lFunProto, ECMAScriptObjects.FUNCTION_CALL, "call", 1, c);
-        createPrimitiveFunction(lFunProto, lFunProto, ECMAScriptObjects.FUNCTION_BIND, "bind", 1, c);
         // TODO pv.writePropertyWithAttributes(lFunction, "prototype", Value.makeObject(EMPTY).setAttributes(false, false, false);
 
         // 15.4.3.2 properties of the Array constructor
@@ -314,7 +418,6 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
         createPrimitiveFunction(lArrayProto, lFunProto, ECMAScriptObjects.ARRAY_REVERSE, "reverse", 0, c);
         createPrimitiveFunction(lArrayProto, lFunProto, ECMAScriptObjects.ARRAY_SHIFT, "shift", 0, c);
         createPrimitiveFunction(lArrayProto, lFunProto, ECMAScriptObjects.ARRAY_SLICE, "slice", 2, c);
-        createPrimitiveFunction(lArrayProto, lFunProto, ECMAScriptObjects.ARRAY_SOME, "some", 1, c);
         createPrimitiveFunction(lArrayProto, lFunProto, ECMAScriptObjects.ARRAY_SORT, "sort", 1, c);
         createPrimitiveFunction(lArrayProto, lFunProto, ECMAScriptObjects.ARRAY_SPLICE, "splice", 2, c);
         createPrimitiveFunction(lArrayProto, lFunProto, ECMAScriptObjects.ARRAY_UNSHIFT, "unshift", 1, c);
@@ -322,11 +425,13 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
 
         // 15.5.3 properties of the String constructor
         createPrimitiveFunction(lString, lFunProto, ECMAScriptObjects.STRING_FROMCHARCODE, "fromCharCode", 1, c);
+        createPrimitiveFunction(lString, lFunProto, ECMAScriptObjects.STRING_FROMCODEPOINT, "fromCodePoint", 1, c);
 
         // 15.5.4 properties of the String prototype object
         s.writeInternalPrototype(lStringProto, Value.makeObject(lObjectPrototype));
+        pv.writePropertyWithAttributes(lStringProto, "length", Value.makeNum(0).setAttributes(true, true, false));  // FIXME: remove this line if switching to ES6 mode (see comment where STRING_PROTOTYPE is created) (GitHub #351)
+        s.writeInternalValue(lStringProto, Value.makeStr("")); // FIXME: remove this line if switching to ES6 mode (see comment where STRING_PROTOTYPE is created) (GitHub #351)
         pv.writePropertyWithAttributes(lStringProto, "constructor", Value.makeObject(lString).setAttributes(true, false, false));
-        s.writeInternalValue(lStringProto, Value.makeStr(""));
 
         createPrimitiveFunction(lStringProto, lFunProto, ECMAScriptObjects.STRING_TOSTRING, "toString", 0, c);
         createPrimitiveFunction(lStringProto, lFunProto, ECMAScriptObjects.STRING_VALUEOF, "valueOf", 0, c);
@@ -337,7 +442,6 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
         createPrimitiveFunction(lStringProto, lFunProto, ECMAScriptObjects.STRING_LASTINDEXOF, "lastIndexOf", 1, c);
         createPrimitiveFunction(lStringProto, lFunProto, ECMAScriptObjects.STRING_LOCALECOMPARE, "localeCompare", 1, c);
         createPrimitiveFunction(lStringProto, lFunProto, ECMAScriptObjects.STRING_MATCH, "match", 1, c);
-        createPrimitiveFunction(lStringProto, lFunProto, ECMAScriptObjects.STRING_REPLACE, "replace", 2, c);
         createPrimitiveFunction(lStringProto, lFunProto, ECMAScriptObjects.STRING_SEARCH, "search", 1, c);
         createPrimitiveFunction(lStringProto, lFunProto, ECMAScriptObjects.STRING_SLICE, "slice", 2, c);
         createPrimitiveFunction(lStringProto, lFunProto, ECMAScriptObjects.STRING_SPLIT, "split", 2, c);
@@ -347,8 +451,15 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
         createPrimitiveFunction(lStringProto, lFunProto, ECMAScriptObjects.STRING_TOUPPERCASE, "toUpperCase", 0, c);
         createPrimitiveFunction(lStringProto, lFunProto, ECMAScriptObjects.STRING_TOLOCALEUPPERCASE, "toLocaleUpperCase", 0, c);
         createPrimitiveFunction(lStringProto, lFunProto, ECMAScriptObjects.STRING_TRIM, "trim", 0, c);
-        pv.writePropertyWithAttributes(lStringProto, "length", Value.makeAnyNum().setAttributes(true, true, true));
+        ObjectLabel trimStart = createPrimitiveFunction(lStringProto, lFunProto, ECMAScriptObjects.STRING_TRIMSTART, "trimStart", 0, c);
+        pv.writePropertyWithAttributes(lStringProto, "trimLeft", Value.makeObject(trimStart).setAttributes(true, false, false));
+        ObjectLabel trimEnd = createPrimitiveFunction(lStringProto, lFunProto, ECMAScriptObjects.STRING_TRIMEND, "trimEnd", 0, c);
+        pv.writePropertyWithAttributes(lStringProto, "trimRight", Value.makeObject(trimEnd).setAttributes(true, false, false));
+        createPrimitiveFunction(lStringProto, lFunProto, ECMAScriptObjects.STRING_STARTSWITH, "startsWith", 1, c);
+        createPrimitiveFunction(lStringProto, lFunProto, ECMAScriptObjects.STRING_ENDSWITH, "endsWith", 1, c);
 
+        createPrimitiveFunction(lStringProto, lFunProto, ECMAScriptObjects.STRING_INCLUDES, "includes", 1, c);
+        createPrimitiveFunction(lStringProto, lFunProto, ECMAScriptObjects.STRING_CODEPOINTAT, "codePointAt", 1, c);
 
         // 15.6.4 properties of the Boolean prototype object
         s.writeInternalPrototype(lBooleanProto, Value.makeObject(lObjectPrototype));
@@ -361,8 +472,10 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
         pv.writePropertyWithAttributes(lNumber, "MAX_VALUE", Value.makeNum(Double.MAX_VALUE).setAttributes(true, true, true));
         pv.writePropertyWithAttributes(lNumber, "MIN_VALUE", Value.makeNum(Double.MIN_VALUE).setAttributes(true, true, true));
         pv.writePropertyWithAttributes(lNumber, "NaN", Value.makeNum(Double.NaN).setAttributes(true, true, true));
+        pv.writePropertyWithAttributes(lNumber, "EPSILON", Value.makeAnyNumOther().setAttributes(true, true, true));
         pv.writePropertyWithAttributes(lNumber, "POSITIVE_INFINITY", Value.makeNum(Double.POSITIVE_INFINITY).setAttributes(true, true, true));
         pv.writePropertyWithAttributes(lNumber, "NEGATIVE_INFINITY", Value.makeNum(Double.NEGATIVE_INFINITY).setAttributes(true, true, true));
+        createPrimitiveFunction(lNumber, lFunProto, ECMAScriptObjects.NUMBER_ISFINITE, "isFinite", 1, c);
 
         // 15.7.4 properties of the Number prototype object
         s.writeInternalPrototype(lNumberProto, Value.makeObject(lObjectPrototype));
@@ -374,6 +487,10 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
         createPrimitiveFunction(lNumberProto, lFunProto, ECMAScriptObjects.NUMBER_TOFIXED, "toFixed", 1, c);
         createPrimitiveFunction(lNumberProto, lFunProto, ECMAScriptObjects.NUMBER_TOEXPONENTIAL, "toExponential", 1, c);
         createPrimitiveFunction(lNumberProto, lFunProto, ECMAScriptObjects.NUMBER_TOPRECISION, "toPrecision", 1, c);
+        createPrimitiveFunction(lNumber, lFunProto, ECMAScriptObjects.NUMBER_ISFINITE, "isFinite", 1, c);
+        createPrimitiveFunction(lNumber, lFunProto, ECMAScriptObjects.NUMBER_ISSAFEINTEGER, "isSafeInteger", 1, c);
+        createPrimitiveFunction(lNumber, lFunProto, ECMAScriptObjects.NUMBER_ISINTEGER, "isInteger", 1, c);
+        createPrimitiveFunction(lNumber, lFunProto, ECMAScriptObjects.NUMBER_ISNAN, "isNan", 1, c);
 
         // 15.8 the Math object
         pv.writePropertyWithAttributes(global, "Math", Value.makeObject(lMath).setAttributes(true, false, false));
@@ -404,6 +521,23 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
         createPrimitiveFunction(lMath, lFunProto, ECMAScriptObjects.MATH_SIN, "sin", 1, c);
         createPrimitiveFunction(lMath, lFunProto, ECMAScriptObjects.MATH_SQRT, "sqrt", 1, c);
         createPrimitiveFunction(lMath, lFunProto, ECMAScriptObjects.MATH_TAN, "tan", 1, c);
+        createPrimitiveFunction(lMath, lFunProto, ECMAScriptObjects.MATH_IMUL, "imul", 1, c);
+        createPrimitiveFunction(lMath, lFunProto, ECMAScriptObjects.MATH_SIGN, "sign", 1, c);
+        createPrimitiveFunction(lMath, lFunProto, ECMAScriptObjects.MATH_TRUNC, "trunc", 1, c);
+        createPrimitiveFunction(lMath, lFunProto, ECMAScriptObjects.MATH_TANH, "tanh", 1, c);
+        createPrimitiveFunction(lMath, lFunProto, ECMAScriptObjects.MATH_ASINH, "asinh", 1, c);
+        createPrimitiveFunction(lMath, lFunProto, ECMAScriptObjects.MATH_ACOSH, "acosh", 1, c);
+        createPrimitiveFunction(lMath, lFunProto, ECMAScriptObjects.MATH_ATANH, "atanh", 1, c);
+        createPrimitiveFunction(lMath, lFunProto, ECMAScriptObjects.MATH_HYPOT, "hypot", 1, c);
+        createPrimitiveFunction(lMath, lFunProto, ECMAScriptObjects.MATH_FROUND, "fround", 1, c);
+        createPrimitiveFunction(lMath, lFunProto, ECMAScriptObjects.MATH_CLZ32, "clz32", 1, c);
+        createPrimitiveFunction(lMath, lFunProto, ECMAScriptObjects.MATH_CBRT, "cbrt", 1, c);
+        createPrimitiveFunction(lMath, lFunProto, ECMAScriptObjects.MATH_SINH, "sinh", 1, c);
+        createPrimitiveFunction(lMath, lFunProto, ECMAScriptObjects.MATH_COSH, "cosh", 1, c);
+        createPrimitiveFunction(lMath, lFunProto, ECMAScriptObjects.MATH_LOG10, "log10", 1, c);
+        createPrimitiveFunction(lMath, lFunProto, ECMAScriptObjects.MATH_LOG2, "log2", 1, c);
+        createPrimitiveFunction(lMath, lFunProto, ECMAScriptObjects.MATH_LOG1P, "log1p", 1, c);
+        createPrimitiveFunction(lMath, lFunProto, ECMAScriptObjects.MATH_EXPM1, "expm1", 1, c);
 
         // 15.9.4 properties of Date constructor
         createPrimitiveFunction(lDate, lFunProto, ECMAScriptObjects.DATE_PARSE, "parse", 1, c);
@@ -456,10 +590,15 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
         createPrimitiveFunction(lDateProto, lFunProto, ECMAScriptObjects.DATE_SETUTCMONTH, "setUTCMonth", 2, c);
         createPrimitiveFunction(lDateProto, lFunProto, ECMAScriptObjects.DATE_SETFULLYEAR, "setFullYear", 3, c);
         createPrimitiveFunction(lDateProto, lFunProto, ECMAScriptObjects.DATE_SETUTCFULLYEAR, "setUTCFullYear", 3, c);
-        createPrimitiveFunction(lDateProto, lFunProto, ECMAScriptObjects.DATE_TOISOSTRING, "toISOString", 0, c);
         createPrimitiveFunction(lDateProto, lFunProto, ECMAScriptObjects.DATE_TOUTCSTRING, "toUTCString", 0, c);
         createPrimitiveFunction(lDateProto, lFunProto, ECMAScriptObjects.DATE_TOJSON, "toJSON", 0, c);
-        
+
+        // ES6 Proxy
+        createPrimitiveConstructor(global, lFunProto, lProxyProto, lProxy, "Proxy", 2, c);
+
+        // properties of ES6 Proxy object
+        createPrimitiveFunction(lProxyProto, lFunProto, ECMAScriptObjects.PROXY_TOSTRING, "toString", 0, c);
+
         // properties of RegExp object
         writePropertyWeakly(lRegExp, "lastMatch", Value.makeAnyStr(), c);
         writePropertyWeakly(lRegExp, "$1", Value.makeAnyStr(), c);
@@ -474,7 +613,7 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
 
         // 15.10.6 properties of the RegExp prototype object
         s.writeInternalPrototype(lRegExpProto, Value.makeObject(lObjectPrototype));
-        pv.writePropertyWithAttributes(lRegExpProto, "valueOf", Value.makeObject(new ObjectLabel(ECMAScriptObjects.OBJECT_VALUEOF, Kind.FUNCTION))
+        pv.writePropertyWithAttributes(lRegExpProto, "valueOf", Value.makeObject(ObjectLabel.make(ECMAScriptObjects.OBJECT_VALUEOF, Kind.FUNCTION))
                 .setAttributes(true, false, false));
         pv.writePropertyWithAttributes(lRegExpProto, "constructor", Value.makeObject(lRegExp).setAttributes(true, false, false));
         pv.writePropertyWithAttributes(lRegExpProto, "multiline", Value.makeBool(false).setAttributes(true, true, true));
@@ -488,11 +627,66 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
         createPrimitiveFunction(lRegExpProto, lFunProto, ECMAScriptObjects.REGEXP_TOSTRING, "toString", 0, c);
         createPrimitiveFunction(lRegExpProto, lFunProto, ECMAScriptObjects.REGEXP_COMPILE, "compile", 1, c);
 
+        // properties of the Error object
+        pv.writeProperty(lError, "stackTraceLimit", Value.makeAnyNumUInt());
+
+        // ES6 Symbol properties
+        pv.writePropertyWithAttributes(global, "Symbol", Value.makeObject(lSymb).setAttributes(true, false, false));
+
+        pv.writePropertyWithAttributes(lSymb, "length", Value.makeNum(0).setAttributes(true, true, true));
+
+        pv.writeProperty(lSymb, "hasInstance", Value.makeSymbol(WELLKNOWN_SYMBOL_HAS_INSTANCE).setAttributes(true, true, true));
+        pv.writeProperty(lSymb, "isConcatSpreadable", Value.makeSymbol(WELLKNOWN_SYMBOL_IS_CONCAT_SPREADABLE).setAttributes(true, true, true));
+        pv.writeProperty(lSymb, "iterator", Value.makeSymbol(WELLKNOWN_SYMBOL_ITERATOR).setAttributes(true, true, true));
+        pv.writeProperty(lSymb, "match", Value.makeSymbol(WELLKNOWN_SYMBOL_MATCH).setAttributes(true, true, true));
+        pv.writeProperty(lSymb, "replace", Value.makeSymbol(WELLKNOWN_SYMBOL_REPLACE).setAttributes(true, true, true));
+        pv.writeProperty(lSymb, "search", Value.makeSymbol(WELLKNOWN_SYMBOL_SEARCH).setAttributes(true, true, true));
+        pv.writeProperty(lSymb, "species", Value.makeSymbol(WELLKNOWN_SYMBOL_SPECIES).setAttributes(true, true, true));
+        pv.writeProperty(lSymb, "split", Value.makeSymbol(WELLKNOWN_SYMBOL_SPLIT).setAttributes(true, true, true));
+        pv.writeProperty(lSymb, "toPrimitive", Value.makeSymbol(WELLKNOWN_SYMBOL_TO_PRIMITIVE).setAttributes(true, true, true));
+        pv.writeProperty(lSymb, "toStringTag", Value.makeSymbol(WELLKNOWN_SYMBOL_TO_STRING_TAG).setAttributes(true, true, true));
+        pv.writeProperty(lSymb, "unscopables", Value.makeSymbol(WELLKNOWN_SYMBOL_UNSCOPABLES).setAttributes(true, true, true));
+
+        createPrimitiveFunction(lSymb, lFunProto, ECMAScriptObjects.SYMBOL_FOR, "for", 1, c);
+        createPrimitiveFunction(lSymb, lFunProto, ECMAScriptObjects.SYMBOL_KEYFOR, "keyFor", 1, c);
+
+        createPrimitiveFunction(lSymbProto, lFunProto, ECMAScriptObjects.SYMBOL_TOSTRING, "toString", 0, c);
+        createPrimitiveFunction(lSymbProto, lFunProto, ECMAScriptObjects.SYMBOL_TOSOURCE, "toSource", 0, c);
+        createPrimitiveFunction(lSymbProto, lFunProto, ECMAScriptObjects.SYMBOL_VALUEOF, "valueOf", 0, c);
+        //createPrimitiveFunction(lSymbProto, lFunProto, ECMAScriptObjects.SYMBOL_PROTOTYPE_TOPRIMITIVE, SymbolPKey.make(ECMAScriptObjects.SYMBOL_TO_PRIMITIVE)), 0, c); // FIXME: github 515 (name is a string, key is a symbol)
+        pv.writeProperty(lSymbProto, "constructor", Value.makeObject(lSymb));
+
+        // ES6 Symbol instance properties
+
+        Set<ObjectLabel> allSymbols = newSet();
+        allSymbols.add(UNKNOWN_SYMBOL_INSTANCES);
+        allSymbols.add(WELLKNOWN_SYMBOL_HAS_INSTANCE);
+        allSymbols.add(WELLKNOWN_SYMBOL_IS_CONCAT_SPREADABLE);
+        allSymbols.add(WELLKNOWN_SYMBOL_ITERATOR);
+        allSymbols.add(WELLKNOWN_SYMBOL_MATCH);
+        allSymbols.add(WELLKNOWN_SYMBOL_REPLACE);
+        allSymbols.add(WELLKNOWN_SYMBOL_SEARCH);
+        allSymbols.add(WELLKNOWN_SYMBOL_SPECIES);
+        allSymbols.add(WELLKNOWN_SYMBOL_SPLIT);
+        allSymbols.add(WELLKNOWN_SYMBOL_TO_PRIMITIVE);
+        allSymbols.add(WELLKNOWN_SYMBOL_TO_STRING_TAG);
+        allSymbols.add(WELLKNOWN_SYMBOL_UNSCOPABLES);
+
+        for (ObjectLabel l : allSymbols) {
+            s.newObject(l);
+            s.writeInternalPrototype(l, Value.makeObject(InitialStateBuilder.SYMBOL_PROTOTYPE));
+        }
+
+        // properties of the Error object
+        pv.writeProperty(lError, "stackTraceLimit", Value.makeAnyNumUInt());
+
         // 15.11.4 properties of the Error prototype object
         s.writeInternalPrototype(lErrorProto, Value.makeObject(lObjectPrototype));
         pv.writePropertyWithAttributes(lErrorProto, "constructor", Value.makeObject(lError).setAttributes(true, false, false));
         pv.writePropertyWithAttributes(lErrorProto, "name", Value.makeStr("Error").setAttributes(true, false, false));
         pv.writePropertyWithAttributes(lErrorProto, "message", Value.makeAnyStr().setAttributes(true, false, false)); // implementation dependent
+        pv.writePropertyWithAttributes(lErrorProto, "stack", Value.makeAnyStr().setAttributes(true, false, false)); // implementation dependent
+
         // string
         createPrimitiveFunction(lErrorProto, lFunProto, ECMAScriptObjects.ERROR_TOSTRING, "toString", 0, c);
 
@@ -529,47 +723,6 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
         createPrimitiveFunction(lDateProto, lFunProto, ECMAScriptObjects.DATE_GETYEAR, "getYear", 0, c);
         createPrimitiveFunction(lDateProto, lFunProto, ECMAScriptObjects.DATE_SETYEAR, "setYear", 2, c);
         createPrimitiveFunction(lDateProto, lFunProto, ECMAScriptObjects.DATE_TOGMTSTRING, "toGMTString", 0, c);
-
-        // our own host defined properties
-        createPrimitiveFunction(global, lFunProto, ECMAScriptObjects.TAJS_DUMPVALUE, ECMAScriptObjects.TAJS_DUMPVALUE.toString(), 1, c);
-        createPrimitiveFunction(global, lFunProto, ECMAScriptObjects.TAJS_DUMPPROTOTYPE, ECMAScriptObjects.TAJS_DUMPPROTOTYPE.toString(), 1, c);
-        createPrimitiveFunction(global, lFunProto, ECMAScriptObjects.TAJS_DUMPOBJECT, ECMAScriptObjects.TAJS_DUMPOBJECT.toString(), 1, c);
-        createPrimitiveFunction(global, lFunProto, ECMAScriptObjects.TAJS_DUMPSTATE, ECMAScriptObjects.TAJS_DUMPSTATE.toString(), 0, c);
-        createPrimitiveFunction(global, lFunProto, ECMAScriptObjects.TAJS_DUMPMODIFIEDSTATE, ECMAScriptObjects.TAJS_DUMPMODIFIEDSTATE.toString(), 0, c);
-        createPrimitiveFunction(global, lFunProto, ECMAScriptObjects.TAJS_DUMPATTRIBUTES, ECMAScriptObjects.TAJS_DUMPATTRIBUTES.toString(), 2, c);
-        createPrimitiveFunction(global, lFunProto, ECMAScriptObjects.TAJS_DUMPEXPRESSION, ECMAScriptObjects.TAJS_DUMPEXPRESSION.toString(), 1, c);
-        createPrimitiveFunction(global, lFunProto, ECMAScriptObjects.TAJS_DUMPNF, ECMAScriptObjects.TAJS_DUMPNF.toString(), 1, c);
-        createPrimitiveFunction(global, lFunProto, ECMAScriptObjects.TAJS_CONVERSION_TO_PRIMITIVE, ECMAScriptObjects.TAJS_CONVERSION_TO_PRIMITIVE.toString(), 2, c);
-        createPrimitiveFunction(global, lFunProto, ECMAScriptObjects.TAJS_ADD_CONTEXT_SENSITIVITY, ECMAScriptObjects.TAJS_ADD_CONTEXT_SENSITIVITY.toString(), 1, c);
-        createPrimitiveFunction(global, lFunProto, ECMAScriptObjects.TAJS_ASSERT, ECMAScriptObjects.TAJS_ASSERT.toString(), 3, c);
-        createPrimitiveFunction(global, lFunProto, ECMAScriptObjects.TAJS_NEW_OBJECT, ECMAScriptObjects.TAJS_NEW_OBJECT.toString(), 0, c);
-
-        if (Options.get().isDOMEnabled()) {
-            // build initial DOM state
-            createPrimitiveFunction(global, lFunProto, ECMAScriptObjects.TAJS_GET_UI_EVENT, ECMAScriptObjects.TAJS_GET_UI_EVENT.toString(), 0, c);
-            createPrimitiveFunction(global, lFunProto, ECMAScriptObjects.TAJS_GET_MOUSE_EVENT, ECMAScriptObjects.TAJS_GET_MOUSE_EVENT.toString(), 0, c);
-            createPrimitiveFunction(global, lFunProto, ECMAScriptObjects.TAJS_GET_KEYBOARD_EVENT, ECMAScriptObjects.TAJS_GET_KEYBOARD_EVENT.toString(), 0, c);
-            createPrimitiveFunction(global, lFunProto, ECMAScriptObjects.TAJS_GET_EVENT_LISTENER, ECMAScriptObjects.TAJS_GET_EVENT_LISTENER.toString(), 0, c);
-            createPrimitiveFunction(global, lFunProto, ECMAScriptObjects.TAJS_GET_WHEEL_EVENT, ECMAScriptObjects.TAJS_GET_WHEEL_EVENT.toString(), 0, c);
-
-            DOMBuilder.addInitialState(document, c);
-        }
-
-        if (Options.get().isDOMEnabled()) {
-            for (Entry<EventHandlerKind, Collection<Function>> me : c.getFlowGraph().getEventHandlers().entrySet()) {
-                EventHandlerKind e = me.getKey();
-                for (Function f : me.getValue()) {
-                    createAndRegisterEventHandler(f, e, c);
-                }
-            }
-        }
-
-        s.setExecutionContext(new ExecutionContext(ScopeChain.make(global), singleton(global), singleton(global)));
-        s.clearEffects();
-        s.freezeBasisStore();
-
-        Context context = c.getAnalysis().getContextSensitivityStrategy().makeInitialContext();
-        c.propagateToBasicBlock(s, global_entry_block, context);
     }
 
     /**
@@ -583,23 +736,11 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
     /**
      * Creates a new built-in function.
      */
-    public static void createPrimitiveFunction(ObjectLabel target, ObjectLabel internal_proto, HostObject primitive, String name, int arity, Solver.SolverInterface c) {
-        State s = c.getState();
-        PropVarOperations pv = c.getAnalysis().getPropVarOperations();
-        ObjectLabel objlabel = new ObjectLabel(primitive, Kind.FUNCTION);
-        s.newObject(objlabel);
-        pv.writePropertyWithAttributes(target, name, Value.makeObject(objlabel).setAttributes(true, false, false));
-        pv.writePropertyWithAttributes(objlabel, "length", Value.makeNum(arity).setAttributes(true, true, true));
-        s.writeInternalPrototype(objlabel, Value.makeObject(internal_proto));
-    }
-
-    public static void createPrimitiveFunctionWeakly(ObjectLabel target, ObjectLabel internal_proto, HostObject primitive, String name, int arity, Solver.SolverInterface c) {
-        State s = c.getState();
-        PropVarOperations pv = c.getAnalysis().getPropVarOperations();
-        ObjectLabel objlabel = new ObjectLabel(primitive, Kind.FUNCTION);
-        s.newObject(objlabel);
-        pv.writePropertyWithAttributes(Collections.singleton(target), name, Value.makeObject(objlabel).setAttributes(true, false, false), false, true);
-        pv.writePropertyWithAttributes(objlabel, "length", Value.makeNum(arity).setAttributes(true, true, true));
+    public static ObjectLabel createPrimitiveFunction(ObjectLabel target, ObjectLabel internal_proto, HostObject primitive, String name, int arity, Solver.SolverInterface c) {
+        ObjectLabel objlabel = ObjectLabel.make(primitive, Kind.FUNCTION);
+        c.getState().newObject(objlabel);
+        createPrimitiveFunctionOrConstructor(target, internal_proto, name, arity, objlabel, c);
+        return objlabel;
     }
 
     /**
@@ -607,39 +748,16 @@ public class InitialStateBuilder implements IInitialStateBuilder<State, Context,
      */
     public static void createPrimitiveConstructor(ObjectLabel target, ObjectLabel internal_proto, ObjectLabel prototype,
                                                   ObjectLabel objlabel, String name, int arity, Solver.SolverInterface c) {
-        State s = c.getState();
+        PropVarOperations pv = c.getAnalysis().getPropVarOperations();
+        createPrimitiveFunctionOrConstructor(target, internal_proto, name, arity, objlabel, c);
+        pv.writePropertyWithAttributes(objlabel, "prototype", Value.makeObject(prototype).setAttributes(true, true, true));
+    }
+
+    private static void createPrimitiveFunctionOrConstructor(ObjectLabel target, ObjectLabel internal_proto, String name, int arity, ObjectLabel objlabel, Solver.SolverInterface c) {
         PropVarOperations pv = c.getAnalysis().getPropVarOperations();
         pv.writePropertyWithAttributes(target, name, Value.makeObject(objlabel).setAttributes(true, false, false));
         pv.writePropertyWithAttributes(objlabel, "length", Value.makeNum(arity).setAttributes(true, true, true));
-        pv.writePropertyWithAttributes(objlabel, "prototype", Value.makeObject(prototype).setAttributes(true, true, true));
-        s.writeInternalPrototype(objlabel, Value.makeObject(internal_proto));
-    }
-
-    /**
-     * Creates and registers event handlers
-     */
-    private static void createAndRegisterEventHandler(Function f, EventHandlerKind kind, Solver.SolverInterface c) {
-        State s = c.getState();
-        if (Options.get().isDOMEnabled()) {
-            switch (kind) {
-                case LOAD:
-                    DOMEvents.addLoadEventHandler(s, singleton(new ObjectLabel(f)));
-                    break;
-                case UNLOAD:
-                    DOMEvents.addUnloadEventHandler(s, singleton(new ObjectLabel(f)));
-                    break;
-                case KEYBOARD:
-                    DOMEvents.addKeyboardEventHandler(s, singleton(new ObjectLabel(f)));
-                    break;
-                case MOUSE:
-                    DOMEvents.addMouseEventHandler(s, singleton(new ObjectLabel(f)));
-                    break;
-                case UNKNOWN:
-                    DOMEvents.addUnknownEventHandler(s, singleton(new ObjectLabel(f)));
-                    break;
-                default:
-                    throw new AnalysisException("Unknown event handler type");
-            }
-        }
+        pv.writePropertyWithAttributes(objlabel, "name", Value.makeStr(name).setAttributes(true, false, true));
+        c.getState().writeInternalPrototype(objlabel, Value.makeObject(internal_proto));
     }
 }

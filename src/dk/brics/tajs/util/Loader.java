@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,14 +17,10 @@
 package dk.brics.tajs.util;
 
 import java.io.BufferedReader;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.MappedByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,59 +31,45 @@ import java.nio.file.Paths;
  */
 public class Loader {
 
-    private Loader() {
-    }
-
     /**
-     * Returns the contents of the given resource (file path or URL) as a string.
-     *
-     * @param location file path or URL
-     * @param charset character encoding (if null, use system default)
-     * @return contents of the file or URL
-     * @throws IOException
+     * Returns the string contents of the given stream.
+     * Empties the stream, but does not close it.
      */
-    public static String getString(String location, String charset) throws IOException {
-        try {
-            URL url = new URL(location);
-            try (InputStream is = url.openStream()) {
-                return getStringFromStream(is, charset);
-            } catch (IOException e) {
-                throw new AnalysisException("Could not load string from location: " + location);
-            }
-        } catch (MalformedURLException e) {
-            // location was not a valid URL, check if it is a local file
-            Path path = Paths.get(location);
-            if (Files.exists(path)) {
-                return getStringFromFile(path, charset);
-            } else {
-                throw new AnalysisException("Cannot get string from location: " + location);
-            }
+    public static String getString(InputStream inputStream, Charset charset) throws IOException {
+        try (InputStreamReader sr = new InputStreamReader(inputStream, charset); BufferedReader r = new BufferedReader(sr)) {
+            StringBuilder b = new StringBuilder();
+            String line;
+            while ((line = r.readLine()) != null)
+                b.append(line).append("\n");
+            return b.toString();
         }
     }
 
     /**
-     * Returns the string contents of the given stream.
+     * Returns the string contents of the given URL.
      */
-    public static String getStringFromStream(InputStream inputStream, String charset) throws IOException {
-        if (charset == null)
-            charset = Charset.defaultCharset().name();
-        try (InputStreamReader sr = new InputStreamReader(inputStream, charset);
-             BufferedReader r = new BufferedReader(sr)) {
-            StringBuilder b = new StringBuilder();
-            int c;
-            while ((c = r.read()) != -1)
-                b.append((char) c);
-            return b.toString();
+    public static String getString(URL url, Charset charset) throws IOException {
+        // attempt fast disk reading
+        Path file;
+        try {
+            file = Paths.get(url.toURI());
+        } catch (Exception e) {
+            file = null;
+        }
+        if (file != null) {
+            return getString(file, charset);
+        }
+
+        // default stream reading
+        try (InputStream s = url.openStream()) {
+            return getString(s, charset);
         }
     }
 
     /**
      * Returns the string contents of the given file.
      */
-    public static String getStringFromFile(Path file, String charset) throws IOException {
-        try (FileChannel fc = new FileInputStream(file.toFile()).getChannel()) {
-            MappedByteBuffer bb = fc.map(FileChannel.MapMode.READ_ONLY, 0, fc.size());
-            return Charset.forName(charset).decode(bb).toString();
-        }
+    public static String getString(Path file, Charset charset) throws IOException {
+        return new String(Files.readAllBytes(file), charset);
     }
 }

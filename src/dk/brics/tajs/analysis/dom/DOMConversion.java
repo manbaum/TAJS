@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,30 +58,6 @@ public class DOMConversion {
     }
 
     /**
-     * Converts the given value to an EventHandler value.
-     */
-    public static Value toEventHandler(Value value, Solver.SolverInterface c) {
-        final String message = "TypeError, non-function event handler";
-        Set<ObjectLabel> result = Collections.newSet();
-
-        boolean maybeNonFunction = value.isMaybePrimitive();
-
-        for (ObjectLabel objectLabel : value.getObjectLabels()) {
-            if (objectLabel.getKind() == ObjectLabel.Kind.FUNCTION) {
-                result.add(objectLabel);
-            } else {
-                maybeNonFunction = true;
-            }
-        }
-
-        if (maybeNonFunction) {
-            c.getMonitoring().addMessage(c.getNode(), Message.Severity.HIGH, message);
-        }
-
-        return Value.makeObject(result);
-    }
-
-    /**
      * Converts the given value to the given NativeObject (optionally following
      * the prototype chains).
      *
@@ -107,7 +83,7 @@ public class DOMConversion {
                         Value prototypeValue = state.readInternalPrototype(java.util.Collections.singleton(objectLabel));
                         prototypeValue = UnknownValueResolver.getRealValue(prototypeValue, state);
 
-                        // FIXME: Needs code review. Looks fishy to compare objects with toString().
+                        // FIXME: Needs code review. Looks fishy to compare objects with toString(). (GitHub #406)
                         String nativeObjectPrototype = nativeObject.toString();
                         String objectLabelPrototype = "";
                         if (objectLabel.getHostObject() != null) {

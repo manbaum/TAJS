@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,6 +34,8 @@ import dk.brics.tajs.flowgraph.jsnodes.UnaryOperatorNode;
 import dk.brics.tajs.flowgraph.jsnodes.WritePropertyNode;
 import dk.brics.tajs.flowgraph.jsnodes.WriteVariableNode;
 import dk.brics.tajs.lattice.ObjectLabel;
+import dk.brics.tajs.lattice.PKey;
+import dk.brics.tajs.lattice.PKey.StringPKey;
 import dk.brics.tajs.lattice.ScopeChain;
 import dk.brics.tajs.lattice.State;
 import dk.brics.tajs.lattice.UnknownValueResolver;
@@ -63,7 +65,7 @@ public class UnevalTools {
      * Rebuilds the expression used to create the value in a register from the flow graph.
      */
     public static String rebuildFullExpression(FlowGraph fg, AbstractNode n, int register) {
-        Decorator dr = new Decorator(fg); //TODO Cache the decorator.
+        Decorator dr = new Decorator(n.getBlock().getFunction()); //TODO Cache the decorator.
 
         return p_build_full(register, n, dr);
     }
@@ -73,11 +75,11 @@ public class UnevalTools {
      */
     public static NormalForm rebuildNormalForm(FlowGraph fg, CallNode n, State s, Solver.SolverInterface c) {
         int register = n.getNumberOfArgs() == 0? AbstractNode.NO_VALUE: n.getArgRegister(0);
-        Decorator dr = new Decorator(fg); //TODO Cache the decorator.
+        Decorator dr = new Decorator(n.getBlock().getFunction()); //TODO Cache the decorator.
 
         Map<String, Integer> mapping = Collections.newMap();
         Set<String> args = newSet();
-        String nf = p_build_nf(register, n, dr, mapping, args, Collections.<Integer>newSet(), s, c, false);
+        String nf = p_build_nf(register, n, dr, mapping, args, Collections.newSet(), s, c, false);
         return new NormalForm(nf, mapping, args);
     }
 
@@ -93,13 +95,14 @@ public class UnevalTools {
             AbstractNode n = ns.get(idx);
 
             if (!effects_only && n instanceof LoadNode && ((LoadNode) n).getResultRegister() == var) {
-                String varStr = s.isRegisterDefined(var) ? Conversion.toString(UnknownValueResolver.getRealValue(s.readRegister(var), s), c).getStr() : null;
-
-                if (varStr != null) {
-                    // We know the value of the register but we still need to traverse the rest of the flow graph to get
-                    // the proper context sensitivity set up.  We don't care about the return value though; throw it away.
-                    p_build_nf(var, node, dr, mapping, arguments, seen_blocks, s, c, true);
-                    return "\"" + Strings.escapeSource(varStr) + "\"";
+                if (s.isRegisterDefined(var)) {
+                    Value v = Conversion.toString(UnknownValueResolver.getRealValue(s.readRegister(var), s), c);
+                    if (v.isMaybeSingleStr()) {
+                        // We know the value of the register but we still need to traverse the rest of the flow graph to get
+                        // the proper context sensitivity set up.  We don't care about the return value though; throw it away.
+                        p_build_nf(var, node, dr, mapping, arguments, seen_blocks, s, c, true);
+                        return "\"" + Strings.escapeSource(v.getStr()) + "\"";
+                    }
                 }
             }
 
@@ -313,7 +316,7 @@ public class UnevalTools {
      * p: TODO: Not implemented.
      * n: TODO: Not implemented.
      */
-    public static AnalyzerCallback unevalizerCallback(final FlowGraph fg, final Solver.SolverInterface c, final AbstractNode evalCall, final NormalForm input) {
+    public static AnalyzerCallback unevalizerCallback(final FlowGraph fg, final Solver.SolverInterface c, final AbstractNode evalCall, final NormalForm input, boolean isEvalCall) {
         final State state = c.getState();
 
         return new AnalyzerCallback() {
@@ -323,6 +326,8 @@ public class UnevalTools {
              */
             @Override
             public boolean anyDeclared(Set<String> vars) {
+                if (!isEvalCall)
+                    return false;
                 for (String ss : vars) {
                     if (c.getAnalysis().getPropVarOperations().readVariable(ss, null).isMaybePresent())
                         return true;
@@ -349,7 +354,7 @@ public class UnevalTools {
                 Value v = state.readRegister(input.getMapping().get(placeholder));
                 v = UnknownValueResolver.getRealValue(v, state);
                 v = v.restrictToStr();
-                return v.isStrIdentifierOrIdentifierParts();
+                return v.isStrIdentifierParts();
             }
 
             /**
@@ -373,11 +378,12 @@ public class UnevalTools {
                 for (Set<ObjectLabel> ls : ScopeChain.iterable(state.getScopeChain()))
                     for (ObjectLabel l : ls)
                         if (!l.equals(InitialStateBuilder.GLOBAL)) {
-                            if (UnknownValueResolver.getDefaultNonArrayProperty(l, state).isNotAbsent()) // TODO: javadoc
+                            if (UnknownValueResolver.getDefaultOtherProperty(l, state).isNotAbsent()) // TODO: javadoc
                                 return null;
-                            for (String propertyname : UnknownValueResolver.getProperties(l, state).keySet())
+                            for (PKey propertyname : UnknownValueResolver.getProperties(l, state).keySet())
                                 if (UnknownValueResolver.getProperty(l, propertyname, state, true).isMaybePresent())
-                                    res.add(propertyname);
+                                    if (propertyname instanceof StringPKey)
+                                        res.add(((StringPKey)propertyname).getStr());
                         }
                 return res;
             }
@@ -418,7 +424,7 @@ public class UnevalTools {
     public static String get_call_name(FlowGraph fg, CallNode n) {
         if (n.getFunctionRegister() == AbstractNode.NO_VALUE)
             return null; // TODO: what if eval is accessed by a read-property operation instead of a read-variable?
-        return get_read_variable_node(new Decorator(fg), n, n.getFunctionRegister(), Collections.<Integer>newSet());
+        return get_read_variable_node(new Decorator(n.getBlock().getFunction()), n, n.getFunctionRegister(), Collections.newSet());
     }
 
     /**

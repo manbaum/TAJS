@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import static dk.brics.tajs.util.Collections.newSet;
 /**
  * Functionality for renaming object labels.
  */
-public class Renaming { // XXX: Renaming and related methods in other classes are currently unused
+public class Renaming { // NOTE: Renaming and related methods in other classes are currently unused
 
     /**
      * Renames the given object label according to the map.
@@ -56,7 +56,7 @@ public class Renaming { // XXX: Renaming and related methods in other classes ar
     /**
      * Renames the given property reference according to the map.
      */
-    public static PropertyReference apply(Map<ObjectLabel, ObjectLabel> m, PropertyReference p) {
+    public static ObjectProperty apply(Map<ObjectLabel, ObjectLabel> m, ObjectProperty p) {
         if (m.isEmpty())
             return p;
         return p.makeRenamed(apply(m, p.getObjectLabel()));

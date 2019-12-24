@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,10 @@ import dk.brics.tajs.lattice.State;
 import dk.brics.tajs.lattice.Str;
 import dk.brics.tajs.lattice.UnknownValueResolver;
 import dk.brics.tajs.lattice.Value;
+import dk.brics.tajs.options.Options;
+import dk.brics.tajs.util.AnalysisException;
+import dk.brics.tajs.util.Collectors;
+import dk.brics.tajs.util.Pair;
 import dk.brics.tajs.util.Strings;
 
 import java.util.Collection;
@@ -47,43 +51,42 @@ public class Operators {
      * 11.4.3 <code>typeof</code>
      */
     public static Value typeof(Value v, boolean base_maybe_null) {
+        if (v.isNone()) {
+            return Value.makeNone();
+        }
         boolean maybe_boolean = !v.isNotBool();
         boolean maybe_number = !v.isNotNum();
         boolean maybe_string = !v.isNotStr();
         boolean maybe_undefined = v.isMaybeUndef() || base_maybe_null;
         boolean maybe_object = v.isMaybeNull();
+        boolean maybe_symbol = false;
         boolean maybe_function = false;
-        for (ObjectLabel objlabel : v.getObjectLabels())
-            if (objlabel.getKind() == Kind.FUNCTION)
+        for (ObjectLabel objlabel : v.getObjectLabels()) {
+            if (objlabel.getKind() == Kind.FUNCTION) {
                 maybe_function = true;
-            else
+            } else if (objlabel.getKind() == Kind.SYMBOL) {
+                maybe_symbol = true;
+            } else {
                 maybe_object = true;
-        int count = (maybe_boolean ? 1 : 0)
-                + (maybe_number ? 1 : 0)
-                + (maybe_string ? 1 : 0)
-                + (maybe_undefined ? 1 : 0)
-                + (maybe_object ? 1 : 0)
-                + (maybe_function ? 1 : 0);
-        if (count > 1)
-            return Value.makeAnyStr();
-        else { // table p. 47
-            String s;
-            if (maybe_boolean)
-                s = "boolean";
-            else if (maybe_number)
-                s = "number";
-            else if (maybe_string)
-                s = "string";
-            else if (maybe_undefined)
-                s = "undefined";
-            else if (maybe_object)
-                s = "object";
-            else if (maybe_function)
-                s = "function";
-            else
-                return Value.makeNone();
-            return Value.makeStr(s);
+            }
         }
+
+        Set<String> values = newSet();
+        Set<String> notValues = newSet();
+        // table p. 47
+        (maybe_boolean ? values : notValues).add("boolean");
+        (maybe_number ? values : notValues).add("number");
+        (maybe_string ? values : notValues).add("string");
+        (maybe_undefined ? values : notValues).add("undefined");
+        (maybe_function ? values : notValues).add("function");
+        (maybe_object ? values : notValues).add("object");
+        (maybe_symbol ? values : notValues).add("symbol");
+
+        if (values.isEmpty()) {
+            throw new AnalysisException("No case for `typeof " + v + "`???");
+        }
+
+        return Value.join(values.stream().map(Value::makeStr).collect(Collectors.toSet())).restrictToNotStrings(notValues);
     }
 
     /**
@@ -98,12 +101,34 @@ public class Operators {
      */
     public static Value uminus(Value v, Solver.SolverInterface c) {
         Value nm = Conversion.toNumber(v, c);
-        if (nm.isNotNum())
-            return Value.makeNone();
-        else if (nm.isMaybeSingleNum())
-            return Value.makeNum(-nm.getNum());
-        else
+        if (nm.isMaybeAnyNum()) {
             return nm;
+        }
+        if (nm.isNotNum()) {
+            return Value.makeNone();
+        }
+        if (nm.isMaybeSingleNum()) {
+            return Value.makeNum(-nm.getNum());
+        }
+        Value result = Value.makeNone();
+        if (nm.isMaybeNumUIntPos()) {
+            result = result.joinAnyNumOther();
+        }
+        if (nm.isMaybeNumOther()) {
+            result = result.joinAnyNumUInt().joinAnyNumOther();
+        }
+        if (nm.isMaybeNaN()) {
+            result = result.joinNumNaN();
+        }
+        if (nm.isMaybeInf()) {
+            result = result.joinNumInf();
+        }
+        if (nm.isMaybeZero()) {
+            result = result.joinNum(0); // will become abstract zero (both positive and negative)
+        } else {
+            result = result.restrictToNotNumZero();
+        }
+        return result;
     }
 
     /**
@@ -195,33 +220,63 @@ public class Operators {
         }
         switch (op) {
             case ADD:
+                if (arg1.isMaybeInf() && arg2.isMaybeInf())
+                    r = r.joinNumNaN();
+                if (arg1.isMaybeInf() || arg2.isMaybeInf())
+                    r = r.joinNumInf();
+                if (arg1.isMaybeSingleNum() && arg1.getNum() == 0) {
+                    r = r.join(arg2); // 0 + x === x
+                } else if (arg2.isMaybeSingleNum() && arg2.getNum() == 0) {
+                    r = r.join(arg1); // x + 0 === x
+                } else if (((arg1.isMaybeNumUInt() && !arg1.restrictToNotNaN().isMaybeOtherThanNumUInt()) || arg1.isMaybeSingleNumUInt()) &&
+                        ((arg2.isMaybeNumUInt() && !arg2.restrictToNotNaN().isMaybeOtherThanNumUInt()) || arg2.isMaybeSingleNumUInt())) {
+                    r = r.joinAnyNumUInt();
+                    if (!c.getAnalysis().getUnsoundness().mayAssumeClosedUIntAddition(c.getNode())) {
+                        r = r.joinAnyNumOther().joinNumInf();
+                    }
+                } else {
+                    r = r.joinAnyNumUInt().joinAnyNumOther();
+                    if (isExtremeSingleNumber(arg1) || isExtremeSingleNumber(arg2)) {
+                        // avoids ignoring deliberate overflows
+                        r = r.joinNumInf();
+                    }
+                }
+
+                if (!arg1.isMaybeSameNumberWhenNegated(arg2)) {
+                    r = r.restrictToNotNumZero();
+                }
+                break;
             case SUB:
                 if (arg1.isMaybeInf() && arg2.isMaybeInf())
                     r = r.joinNumNaN();
                 if (arg1.isMaybeInf() || arg2.isMaybeInf())
                     r = r.joinNumInf();
-                if (((arg1.isMaybeNumUInt() && !arg1.restrictToNotNaN().isMaybeOtherThanNumUInt()) || arg1.isMaybeSingleNumUInt()) &&
-                        ((arg2.isMaybeNumUInt() && !arg2.restrictToNotNaN().isMaybeOtherThanNumUInt()) || arg2.isMaybeSingleNumUInt())) {
-                    // FIXME: this rule ignores overflows from UInt (use Options.get().isUnsound()) - see github #193
-                    // FIXME: this rule assumes Uint - Uint => Uint (use Options.get().isUnsound()) ((a fix will break TestMicro#micro_testUintSub)))
-
-                    // NB: Number.MAX_VALUE + Number.MAX_VALUE == Infinity, but Number.MAX_VALUE + (Number.MAX_VALUE / 100000000000000000) == Number.MAX_VALUE
-                    // So it is sound to treat UInt as closed under "small" additions.
-                    r = r.joinAnyNumUInt();
+                if (arg2.isMaybeSingleNum() && arg2.getNum() == 0) {
+                    r = r.join(arg1); // x - 0 === x
                 } else {
-                    // TODO: ignores overflow to +/-Infinity (use Options.get().isUnsound())
                     r = r.joinAnyNumUInt().joinAnyNumOther();
+                    if (isExtremeSingleNumber(arg1) || isExtremeSingleNumber(arg2)) {
+                        // avoids ignoring deliberate overflows
+                        r = r.joinNumInf();
+                    }
+                }
+                if (!arg1.restrictToNotNaN().restrictToNotNumInf().isMaybeSameNumber(arg2)) {
+                    r = r.restrictToNotNumZero();
                 }
                 break;
-            case MUL: // TODO: it would be useful to know if a value is 0, too
+            case MUL:
                 if (arg1.isMaybeInf() && arg2.isMaybeInf())
                     r = r.joinNumInf();
                 if (arg1.isMaybeInf() && !arg2.isNotNum())
                     r = r.joinNumNaN().joinNumInf();
                 if (!arg1.isNotNum() && arg2.isMaybeInf())
                     r = r.joinNumNaN().joinNumInf();
-                if (!arg1.isNotNum() && !arg2.isNotNum())
-                    r = r.joinAnyNumUInt().joinAnyNumOther();
+                if (!arg1.isNotNum() && !arg2.isNotNum()) {
+                    r = r.joinAnyNumUInt().joinNumInf().joinAnyNumOther();
+                }
+                if (!arg1.isMaybeZero() && !arg2.isMaybeZero()) {
+                    r = r.restrictToNotNumZero();
+                }
                 break;
             case DIV:
                 if (arg1.isMaybeInf() && arg2.isMaybeInf())
@@ -232,8 +287,14 @@ public class Operators {
                     Value zero = r.joinNum(0.0).joinNum(-0.0); // TODO: bad for precision?
                     r = r.join(zero);
                 }
-                if (!arg1.isNotNum() && !arg2.isNotNum())
-                    r = r.joinAnyNumUInt().joinAnyNumOther().joinNumNaN().joinNumInf(); // TODO: (use Options.get().isUnsound())   - can avoid NaN here sometimes! requires isZero
+                if (!arg1.isNotNum() && !arg2.isNotNum()) {
+                    r = r.joinAnyNumUInt().joinAnyNumOther().joinNumNaN(); // TODO: (use Options.get().isUnsound())
+                }
+                if (!arg1.isMaybeZero() && !arg2.isMaybeInf() && !arg1.isMaybeNumOther() /* very small numbers can be divided to zero! */) {
+                    r = r.restrictToNotNumZero();
+                }
+                if (arg2.isMaybeZero())
+                    r = r.joinNumInf();
                 break;
             case MOD:
                 if (arg1.isMaybeInf() && arg2.isMaybeInf())
@@ -243,10 +304,16 @@ public class Operators {
                 if (!arg1.isNotNum() && arg2.isMaybeInf())
                     r = r.join(arg1);
                 if (!arg1.isNotNum() && !arg2.isNotNum())
-                    r = r.joinAnyNumUInt().joinAnyNumOther().joinNumNaN(); // TODO: (use Options.get().isUnsound())   - can avoid NaN here sometimes! requires isZero (benchpress2.js)
+                    r = r.joinAnyNumUInt().joinAnyNumOther(); // TODO: (use Options.get().isUnsound())
+                if (arg2.isMaybeZero())
+                    r = r.joinNumNaN();
                 break;
         }
         return r;
+    }
+
+    private static boolean isExtremeSingleNumber(Value v) {
+        return v.isMaybeSingleNum() && (v.getNum() == Double.MAX_VALUE || v.getNum() == Double.MIN_VALUE);
     }
 
     /**
@@ -261,6 +328,9 @@ public class Operators {
      */
     public static Value add(Value v1, Value v2, Solver.SolverInterface c) {
         Value p1 = Conversion.toPrimitive(v1, Hint.NONE, c);
+        if (c.getAnalysis().getUnsoundness().mayIgnoreUnlikelyUndefinedAsFirstArgumentToAddition(c.getNode(), p1)) {
+            p1 = p1.restrictToNotUndef();
+        }
         Value p2 = Conversion.toPrimitive(v2, Hint.NONE, c);
         Value r1 = p1.restrictToNotStr();
         Value r2 = p2.restrictToNotStr();
@@ -268,10 +338,10 @@ public class Operators {
         Value r = addStrings(p1, p2, Value.makeNone());
         // handle string parts of p1 + non-string parts of p2
         if (!p1.isNotStr() && p2.isMaybeOtherThanStr())
-            r = addStrings(p1, Conversion.toString(r2, c), r);
+            r = r.join(addStrings(p1, Conversion.toString(r2, c), r));
         // handle non-string parts of p1 + string parts of p2
         if (!p2.isNotStr() && p1.isMaybeOtherThanStr())
-            r = addStrings(Conversion.toString(r1, c), p2, r);
+            r = r.join(addStrings(Conversion.toString(r1, c), p2, r));
         // handle non-string parts of p1 + non-string parts of p2
         if (r1.isMaybePresent() && r2.isMaybePresent())
             r = r.join(addNumbers(r1, r2, c));
@@ -279,32 +349,47 @@ public class Operators {
     }
 
     private static Value addStrings(Str s1, Str s2, Value r) { // TODO: could be more precise in some cases...
-        if (s1.isMaybeSingleStr()) {
+        if (s1.isMaybeAllKnownStr() && s2.isMaybeAllKnownStr()) {
+            // s1 and s2 are both known strings
+            if (s1.isMaybeSingleStr() && s2.isMaybeSingleStr() && s1.getIncludedStrings() == null && s2.getIncludedStrings() == null) {
+                r = r.joinStr(s1.getStr() + s2.getStr());
+            } else {
+                Set<Value> vs = newSet();
+                Set<String> vs1 = s1.getAllKnownStr();
+                Set<String> vs2 = s2.getAllKnownStr();
+                for (String ss1 : vs1) {
+                    for (String ss2 : vs2) {
+                        vs.add(Value.makeStr(ss1 + ss2));
+                    }
+                }
+                r = r.join(Value.join(vs));
+                if (((vs.size() > Options.Constants.STRING_CONCAT_SETS_BOUND) && vs1.size() > 1 && vs2.size() > 1) || vs.size() > Options.Constants.STRING_SETS_BOUND) {
+                    // widen
+                    r = r.forgetExcludedIncludedStrings();
+                }
+            }
+        } else if (s1.isMaybeSingleStr()) {
             // s1 is single string, handle string parts of s2
             if (s2.isMaybeSingleStr()) {
                 // s1 and s2 are both single strings
-                r = r.joinStr(s1.getStr() + s2.getStr());
+                r = r.joinStr(s1.getStr() + s2.getStr()); // (covered by case above)
+            } else if (s1.getStr().isEmpty()) {
+                r = r.join(s2.restrictToStr());
+            } else if (s2.isMaybeStrPrefix()) {
+                r = r.joinPrefix(s1.getStr() + s2.getPrefix());
             } else if (s2.isMaybeFuzzyStr()) {
                 // s1 is single string, s2 is fuzzy string
-                if (Strings.isIdentifier(s1.getStr())
-                        && (s2.isMaybeStrUInt() || s2.isMaybeStrIdentifier() || s2.isMaybeStrIdentifierParts() || (s2.isMaybeStrPrefixedIdentifierParts() && Strings.isIdentifierParts(s2.getPrefix())))
-                        && !(s2.isMaybeStrOtherNum() || s2.isMaybeStrOther()))
-                    r = r.joinPrefixedIdentifierParts(s1.getStr());
-                else if (Strings.isIdentifierParts(s1.getStr())
-                        && (s2.isMaybeStrUInt() || s2.isMaybeStrIdentifier() || s2.isMaybeStrIdentifierParts() || (s2.isMaybeStrPrefixedIdentifierParts() && Strings.isIdentifierParts(s2.getPrefix())))
-                        && !(s2.isMaybeStrOtherNum() || s2.isMaybeStrOther()))
-                    r = r.joinAnyStrIdentifierParts();
-                else
-                    r = Value.makeAnyStr();
+                r = r.joinPrefix(s1.getStr());
             }
         } else if (s1.isMaybeFuzzyStr()) {
             // s1 is fuzzy string, handle string parts of s2
             if (s2.isMaybeSingleStr()) {
                 // s1 is fuzzy string, p2 is single string
-                if (s1.isMaybeStrPrefixedIdentifierParts()
-                        && Strings.isIdentifierParts(s2.getStr()))
-                    r = r.joinPrefixedIdentifierParts(s1.getPrefix());
-                else if ((s1.isMaybeStrUInt() || s1.isMaybeStrIdentifier() || s1.isMaybeStrIdentifierParts() || (s1.isMaybeStrPrefixedIdentifierParts() && Strings.isIdentifierParts(s1.getPrefix())))
+                if (s2.getStr().isEmpty()) {
+                    r = r.join(s1.restrictToStr());
+                } else if (s1.isMaybeStrPrefix())
+                    r = r.joinPrefix(s1.getPrefix());
+                else if ((s1.isMaybeStrUInt() || s1.isMaybeStrIdentifier() || s1.isMaybeStrOtherIdentifierParts())
                         && !(s1.isMaybeStrOtherNum() || s1.isMaybeStrOther())
                         && Strings.isIdentifierParts(s2.getStr()))
                     r = r.joinAnyStrIdentifierParts();
@@ -312,22 +397,35 @@ public class Operators {
                     r = Value.makeAnyStr();
             } else if (s2.isMaybeFuzzyStr()) {
                 // s1 and s2 are both fuzzy strings
-                if (s1.isMaybeStrPrefixedIdentifierParts()
-                        && (s2.isMaybeStrUInt() || s2.isMaybeStrIdentifier() || s2.isMaybeStrIdentifierParts() || (s2.isMaybeStrPrefixedIdentifierParts() && Strings.isIdentifierParts(s2.getPrefix())))
-                        && !(s2.isMaybeStrOtherNum() || s2.isMaybeStrOther()))
-                    r = r.joinPrefixedIdentifierParts(s1.getPrefix());
+                if (s1.isMaybeStrPrefix())
+                    r = r.joinPrefix(s1.getPrefix());
                 else if (s1.isMaybeStrUInt() && !s1.isMaybeStrSomeNonUInt() && s2.isMaybeStrUInt() && !s2.isMaybeStrSomeNonUInt()) {
-                    r = r.joinAnyStrOtherNum();
-                } else if ((s1.isMaybeStrUInt() || s1.isMaybeStrIdentifier() || s1.isMaybeStrIdentifierParts() || (s1.isMaybeStrPrefixedIdentifierParts() && Strings.isIdentifierParts(s1.getPrefix())))
+                    r = r.joinAnyStrOtherNum().joinAnyStrUInt();
+                } else if ((s1.isMaybeStrUInt() || s1.isMaybeStrIdentifier() || s1.isMaybeStrOtherIdentifierParts())
                         && !(s1.isMaybeStrOtherNum() || s1.isMaybeStrOther())
-                        && (s2.isMaybeStrUInt() || s2.isMaybeStrIdentifier() || s2.isMaybeStrIdentifierParts() || (s2.isMaybeStrPrefixedIdentifierParts() && Strings.isIdentifierParts(s2.getPrefix())))
+                        && (s2.isMaybeStrUInt() || s2.isMaybeStrIdentifier() || s2.isMaybeStrOtherIdentifierParts())
                         && !(s2.isMaybeStrOtherNum() || s2.isMaybeStrOther()))
                     r = r.joinAnyStrIdentifierParts();
                 else
                     r = Value.makeAnyStr();
             }
         }
-        if (s1.isMaybeStrJSON() || s2.isMaybeStrJSON()) // TODO: better precision for "(" + JSON + ")"
+
+        String s1characters = s1.isMaybeSingleStr() ? s1.getStr() : s1.isMaybeStrPrefix() ? s1.getPrefix() : "";
+        String s2characters = s2.isMaybeSingleStr() ? s2.getStr() : s2.isMaybeStrPrefix() ? s2.getPrefix() : "";
+        boolean containsNonIdentifierCharacters = (!s1characters.isEmpty() && !Strings.isIdentifierParts(s1characters)) || (!s2characters.isEmpty() && !Strings.isIdentifierParts(s2characters));
+        if (containsNonIdentifierCharacters) {
+            r = r.restrictToNotStrIdentifierParts();
+        }
+        boolean containsNonDigits = (!s1characters.isEmpty() && !Strings.isArrayIndex(s1characters)) || (!s2characters.isEmpty() && !Strings.isArrayIndex(s2characters));
+        if (containsNonDigits) {
+            r = r.restrictToNotStrUInt();
+        }
+        boolean containsNonOtherNumCharacters = Strings.containsNonNumberCharacters(s1characters) || Strings.containsNonNumberCharacters(s2characters);
+        if (containsNonOtherNumCharacters) {
+            r = r.restrictToNotStrOtherNum();
+        }
+        if (s1.isMaybeStrJSON() || s2.isMaybeStrJSON()) // FIXME: hack to handle "(" + JSON + ")", github #374
             r = r.join(Value.makeJSONStr());
         return r;
     }
@@ -364,7 +462,7 @@ public class Operators {
             }
             return Value.makeNum(r);
         } else
-            return Value.makeNone().joinAnyNumUInt();
+            return Value.makeAnyNumNotNaNInf();
     }
 
     /**
@@ -392,6 +490,10 @@ public class Operators {
      * 11.8.1 <code>&lt;</code>
      */
     public static Value lt(Value v1, Value v2, Solver.SolverInterface c) {
+        if (v1.isMaybeSingleNum() && v1.getNum().equals(0.0) && !v1.isMaybeOtherThanNum() && v2.isMaybeNumUIntPos() && !v2.isMaybeZero() && !v2.isMaybeOtherThanNumUInt()) {
+            // 0 is less than UIntPos
+            return Value.makeBool(true);
+        }
         return abstractRelationalComparison(v1, v2, c);
     }
 
@@ -399,6 +501,10 @@ public class Operators {
      * 11.8.2 <code>&gt;</code>
      */
     public static Value gt(Value v1, Value v2, Solver.SolverInterface c) {
+        if (v1.isMaybeNumUIntPos() && !v1.isMaybeZero() && !v1.isMaybeOtherThanNumUInt() && v2.isMaybeSingleNum() && v2.getNum().equals(0.0) && !v2.isMaybeOtherThanNum()) {
+            // UIntPos is greater than 0
+            return Value.makeBool(true);
+        }
         return abstractRelationalComparison(v2, v1, c);
     }
 
@@ -406,29 +512,33 @@ public class Operators {
      * 11.8.3 <code>&lt;=</code>
      */
     public static Value le(Value v1, Value v2, Solver.SolverInterface c) {
-        return not(abstractRelationalComparison(v2, v1, c));
+        return abstractRelationalComparison(v2, v1, true, c);
     }
 
     /**
      * 11.8.4 <code>&gt;=</code>
      */
     public static Value ge(Value v1, Value v2, Solver.SolverInterface c) {
-        return not(abstractRelationalComparison(v1, v2, c));
+        return abstractRelationalComparison(v1, v2, true, c);
     }
 
     /**
      * 11.8.5 The Abstract Relational Comparison Algorithm.
      */
     private static Value abstractRelationalComparison(Value v1, Value v2, Solver.SolverInterface c) {
+        return abstractRelationalComparison(v1, v2, false, c);
+    }
+
+    private static Value abstractRelationalComparison(Value v1, Value v2, boolean negateResultIfAllowed, Solver.SolverInterface c) {
         Value p1 = Conversion.toPrimitive(v1, Hint.NUM, c);
         Value p2 = Conversion.toPrimitive(v2, Hint.NUM, c);
-        if (p1.isMaybeFuzzyStr() || p2.isMaybeFuzzyStr()
+        if (p1.isMaybeFuzzyStr() || p2.isMaybeFuzzyStr() // TODO: could improve precision using Value.isStringDisjoint?
                 || p1.isMaybeAnyBool() || p2.isMaybeAnyBool()
-                || p1.isMaybeFuzzyNum() || p2.isMaybeFuzzyNum())
+                || (p1.isMaybeFuzzyNum() && !p1.isNaN()) || (p2.isMaybeFuzzyNum() && !p2.isNaN()))
             return Value.makeAnyBool();  // may be undefined according to items 6 and 7, but changed to false in 11.8.1-4
         else if (p1.isNotStr() || p2.isNotStr()) {
             // at most one argument is a string: perform numeric comparison
-            return numericComparison(p1, p2, c);
+            return numericComparison(p1, p2, negateResultIfAllowed, c);
         } else {
             // (at least) two defined string arguments: perform a string comparison
             Value r;
@@ -439,27 +549,39 @@ public class Operators {
                     r = Value.makeBool(true);
                 else
                     r = Value.makeBool(false);
+                r = negateResultIfAllowed ? not(r) : r;
             } else
                 r = Value.makeNone();
-            if (p1.isMaybeOtherThanStr() || p2.isMaybeOtherThanStr())
-                r = r.join(numericComparison(p1, p2, c));
+            if (p1.isMaybeOtherThanStr() || p2.isMaybeOtherThanStr()) {
+                r = r.join(numericComparison(p1, p2, negateResultIfAllowed, c));
+            }
             return r;
         }
     }
 
+    private static Value numericComparison(Value p1, Value p2, boolean negateResultIfAllowed, Solver.SolverInterface c) {
+        Pair<Value, Boolean> comparisonResult = numericComparison(p1, p2, c);
+        Value result = comparisonResult.getFirst();
+        Boolean mayNegate = comparisonResult.getSecond();
+        boolean negate = mayNegate && negateResultIfAllowed;
+        return negate ? not(result) : result;
+    }
+
     /**
      * Numeric comparison, used by abstractRelationalComparison.
+     *
+     * @return pair of comparison result and a boolean that is true if the result may be negated (NaN comparisons always yield false!)
      */
-    private static Value numericComparison(Value p1, Value p2, Solver.SolverInterface c) {
+    private static Pair<Value, Boolean> numericComparison(Value p1, Value p2, Solver.SolverInterface c) {
         if (p1.isNotPresent() || p2.isNotPresent())
-            return Value.makeNone();
+            return Pair.make(Value.makeNone(), true);
         Value n1 = Conversion.toNumber(p1, c);
         Value n2 = Conversion.toNumber(p2, c);
         if (n1.isMaybeSingleNum() && n2.isMaybeSingleNum())
-            return Value.makeBool(n1.getNum() < n2.getNum());
+            return Pair.make(Value.makeBool(n1.getNum() < n2.getNum()), true);
         if (n1.isNaN() || n2.isNaN())
-            return Value.makeBool(false);
-        return Value.makeAnyBool();
+            return Pair.make(Value.makeBool(false), false);
+        return Pair.make(Value.makeAnyBool(), true);
     }
 
     /**
@@ -478,14 +600,13 @@ public class Operators {
         //  15.3.5.3 step 1-4
         Value v2_prototype = c.getAnalysis().getPropVarOperations().readPropertyValue(v2_objlabels, "prototype");
         v2_prototype = UnknownValueResolver.getRealValue(v2_prototype, c.getState());
-        boolean maybe_v2_prototype_primitive = v2_prototype.isMaybePrimitive();
-        boolean maybe_v2_prototype_nonprimitive = v2_prototype.isMaybeObject();
+        boolean maybe_v2_prototype_nonobject = v2_prototype.isMaybePrimitiveOrSymbol();
+        boolean maybe_v2_prototype_object = v2_prototype.isMaybeObject();
         c.getMonitoring().visitInstanceof(c.getNode(), maybe_v2_non_function, maybe_v2_function,
-                maybe_v2_prototype_primitive, maybe_v2_prototype_nonprimitive);
-        if (maybe_v2_non_function || maybe_v2_prototype_primitive) {
+                maybe_v2_prototype_nonobject, maybe_v2_prototype_object);
+        if (maybe_v2_non_function || maybe_v2_prototype_nonobject) {
             Exceptions.throwTypeError(c);
-            if ((maybe_v2_non_function && !maybe_v2_function)
-                    || (maybe_v2_prototype_nonprimitive && !maybe_v2_prototype_primitive))
+            if (!maybe_v2_function || !maybe_v2_prototype_object)
                 return Value.makeNone();
         }
         return c.getState().hasInstance(v2_prototype.getObjectLabels(), v1);
@@ -497,7 +618,7 @@ public class Operators {
     public static Value in(Value v1, Value v2, Solver.SolverInterface c) {
         // 11.8.7 step 5
         boolean maybe_v2_object = v2.isMaybeObject();
-        boolean maybe_v2_nonobject = v2.isMaybePrimitive();
+        boolean maybe_v2_nonobject = v2.isMaybePrimitiveOrSymbol();
         c.getMonitoring().visitIn(c.getNode(), maybe_v2_object, maybe_v2_nonobject);
         if (maybe_v2_nonobject) {
             Exceptions.throwTypeError(c);
@@ -505,11 +626,14 @@ public class Operators {
                 return Value.makeNone();
         }
         // 11.8.7 step 6-8
-        Value v1_str = Conversion.toString(v1, c);
-        if (v1_str.isMaybeSingleStr())
-            return Value.makeBool(c.getAnalysis().getPropVarOperations().hasProperty(v2.getObjectLabels(), v1_str.getStr()));
-        else // TODO: could return false if all objects in v2 are empty
-            return Value.makeAnyBool();
+        Value v1_strorsymbol = Conversion.toString(v1.restrictToNotSymbol(), c).join(v1.restrictToSymbol());
+        Value res = Value.makeBool(c.getAnalysis().getPropVarOperations().hasProperty(v2.getObjectLabels(), v1_strorsymbol));
+
+        if (c.getAnalysis().getUnsoundness().mayAssumeInOperatorReturnsTrueWhenSoundResultIsMaybeTrueAndPropNameIsNumber(c.getNode(), v1, res)) {
+            res = Value.makeBool(true);
+        }
+
+        return res;
     }
 
     /**
@@ -542,7 +666,7 @@ public class Operators {
                 r = r.joinBool(false);
             if (!v2.isNotStr())
                 r = r.joinBool(false);
-            if (v2.isMaybeObject())
+            if (v2.isMaybeObjectOrSymbol())
                 r = r.joinBool(false);
         }
         if (v1.isMaybeNull()) {
@@ -556,7 +680,7 @@ public class Operators {
                 r = r.joinBool(false);
             if (!v2.isNotStr())
                 r = r.joinBool(false);
-            if (v2.isMaybeObject())
+            if (v2.isMaybeObjectOrSymbol())
                 r = r.joinBool(false);
         }
         if (!v1.isNotBool()) {
@@ -571,7 +695,8 @@ public class Operators {
             }
             if (!v2.isNotNum()) {
                 Num n1 = Conversion.fromBooltoNum(v1);
-                r = abstractNumberEquality(r, n1, v2);
+                Value n2 = v2.restrictToNum();
+                r = abstractNumberEquality(r, n1, n2);
             }
             if (!v2.isNotStr()) {
                 Num n1 = Conversion.fromBooltoNum(v1);
@@ -580,7 +705,12 @@ public class Operators {
             }
             if (v2.isMaybeObject()) {
                 Num n1 = Conversion.fromBooltoNum(v1);
-                Num n2 = Conversion.toNumber(weakToPrimitive(Value.makeObject(v2.getObjectLabels()), Hint.NUM, r, c), c);
+                Num n2 = Conversion.toNumber(weakToPrimitive(v2.restrictToNonSymbolObject(), Hint.NUM, r, c), c);
+                r = abstractNumberEquality(r, n1, n2);
+            }
+            if (v2.isMaybeSymbol()) {
+                Num n1 = Conversion.fromBooltoNum(v1);
+                Num n2 = v2.restrictToSymbol();
                 r = abstractNumberEquality(r, n1, n2);
             }
         }
@@ -601,9 +731,12 @@ public class Operators {
                 r = abstractNumberEquality(r, v1, n2);
             }
             if (v2.isMaybeObject()) {
-                Value arg1 = v1.restrictToNum();
-                Value arg2 = weakToPrimitive(Value.makeObject(v2.getObjectLabels()), Hint.NONE, r, c);
-                r = r.join(abstractEqualityComparison(arg1, arg2, c));
+                Value n1 = v1.restrictToNum();
+                Value n2 = weakToPrimitive(v2.restrictToNonSymbolObject(), Hint.NONE, r, c);
+                r = r.join(abstractEqualityComparison(n1, n2, c));
+            }
+            if (v2.isMaybeSymbol()) {
+                r = r.joinBool(false);
             }
         }
         if (!v1.isNotStr()) {
@@ -621,43 +754,70 @@ public class Operators {
                 r = abstractNumberEquality(r, n1, v2);
             }
             if (!v2.isNotStr()) {
-                if (v1.isMaybeFuzzyStr() || v2.isMaybeFuzzyStr())
-                    r = Value.makeAnyBool();
-                else {
-                    String s1 = v1.getStr();
-                    String s2 = v2.getStr();
-                    if (s1 != null && s2 != null) {
-                        r = r.joinBool(s1.equals(s2));
-                    }
-                }
+                r = r.join(stringEqualityComparison(v1, v2));
             }
             if (v2.isMaybeObject()) {
-                Value arg1 = v1.restrictToStr();
-                Value arg2 = weakToPrimitive(Value.makeObject(v2.getObjectLabels()), Hint.NONE, r, c);
-                r = r.join(abstractEqualityComparison(arg1, arg2, c));
+                Value n1 = v1.restrictToStr();
+                Value n2 = weakToPrimitive(v2.restrictToNonSymbolObject(), Hint.NONE, r, c);
+                r = r.join(abstractEqualityComparison(n1, n2, c));
+            }
+            if (v2.isMaybeSymbol()) {
+                r = r.joinBool(false);
+            }
+        }
+        if (v1.isMaybeSymbol()) {
+            if (v2.isMaybeUndef())
+                r = r.joinBool(false);
+            if (v2.isMaybeNull())
+                r = r.joinBool(false);
+            if (!v2.isNotBool()) {
+                Value n1 = v1.restrictToSymbol();
+                Num n2 = Conversion.fromBooltoNum(v2);
+                r = abstractNumberEquality(r, n1, n2);
+            }
+            if (!v2.isNotNum()) {
+                r = r.joinBool(false);
+            }
+            if (!v2.isNotStr()) {
+                r = r.joinBool(false);
+            }
+            if (v2.isMaybeObject()) {
+                Value n1 = v1.restrictToSymbol();
+                Value n2 = weakToPrimitive(v2.restrictToNonSymbolObject(), Hint.NONE, r, c);
+                r = r.join(abstractEqualityComparison(n1, n2, c));
+            }
+            if (v2.isMaybeSymbol()) {
+                r = eqObjectOrSymbol(r, v1.getSymbols(), v2.getSymbols());
             }
         }
         if (v1.isMaybeObject()) {
-            if (v2.isMaybeUndef()) r = r.joinBool(false);
-            if (v2.isMaybeNull()) r = r.joinBool(false);
-            Value vv1 = Value.makeObject(v1.getObjectLabels());
+            if (v2.isMaybeUndef())
+                r = r.joinBool(false);
+            if (v2.isMaybeNull())
+                r = r.joinBool(false);
+            Value vv1 = v1.restrictToNonSymbolObject();
             if (!v2.isNotBool()) {
                 Num n1 = Conversion.toNumber(weakToPrimitive(vv1, Hint.NUM, r, c), c);
                 Num n2 = Conversion.fromBooltoNum(v2);
                 r = abstractNumberEquality(r, n1, n2);
             }
             if (!v2.isNotNum()) {
-                Value arg1 = weakToPrimitive(vv1, Hint.NONE, r, c);
-                Value arg2 = v2.restrictToNum();
-                r = r.join(abstractEqualityComparison(arg1, arg2, c));
+                Value n1 = weakToPrimitive(vv1, Hint.NONE, r, c);
+                Value n2 = v2.restrictToNum();
+                r = r.join(abstractEqualityComparison(n1, n2, c));
             }
             if (!v2.isNotStr()) {
-                Value arg1 = weakToPrimitive(vv1, Hint.NONE, r, c);
-                Value arg2 = v2.restrictToStr();
-                r = r.join(abstractEqualityComparison(arg1, arg2, c));
+                Value n1 = weakToPrimitive(vv1, Hint.NONE, r, c);
+                Value n2 = v2.restrictToStr();
+                r = r.join(abstractEqualityComparison(n1, n2, c));
             }
             if (v2.isMaybeObject()) {
-                r = eqObject(r, v1.getObjectLabels(), v2.getObjectLabels());
+                r = eqObjectOrSymbol(r, vv1.getObjectLabels(), v2.restrictToNonSymbolObject().getObjectLabels());
+            }
+            if (v2.isMaybeSymbol()) {
+                Value n1 = weakToPrimitive(vv1, Hint.NONE, r, c);
+                Value n2 = v2.restrictToSymbol();
+                r = r.join(abstractEqualityComparison(n1, n2, c));
             }
         }
         return r;
@@ -670,7 +830,7 @@ public class Operators {
         }
         v = Conversion.toPrimitive(v, hint, c);
         if (!r.isNone()) {
-            c.getState().propagate(s, false); // weak update of side-effects of toPrimitive, but only if we already have a partial result
+            c.getState().propagate(s, false, false); // weak update of side-effects of toPrimitive, but only if we already have a partial result
         }
         return v;
     }
@@ -678,7 +838,7 @@ public class Operators {
     /**
      * Part of 11.9.3 The Abstract Equality Comparison Algorithm and 11.9.6 The Strict Equality Comparison Algorithm.
      */
-    private static Value eqObject(Bool r, Collection<ObjectLabel> labels1, Collection<ObjectLabel> labels2) {
+    private static Value eqObjectOrSymbol(Bool r, Collection<ObjectLabel> labels1, Collection<ObjectLabel> labels2) {
         Set<ObjectLabel> labelsInBoth = newSet();
         labelsInBoth.addAll(labels1);
         labelsInBoth.retainAll(labels2);
@@ -704,11 +864,8 @@ public class Operators {
         if (n1.isMaybeSingleNum() && n2.isMaybeSingleNum()) {
             double d1 = n1.getNum();
             double d2 = n2.getNum();
-            if (d1 == d2 || d1 == 0.0 && d2 == -0.0 || d1 == -0.0 && d2 == 0.0) // FIXME: comparisons with 0.0 or -0.0 always false?!
-                // absolute weirdness, but required by standard 11.9.3 points 8 and 9
-                return r.joinBool(true);
-            else
-                return r.joinBool(false);
+            // (NB Java-== does not distinguish -0.0 and +0.0)
+            return r.joinBool(d1 == d2);
         }
         return Value.makeAnyBool();
     }
@@ -743,8 +900,11 @@ public class Operators {
                 r = r.joinBool(false);
             if (!v2.isNotStr())
                 r = r.joinBool(false);
-            if (v2.isMaybeObject())
+            if (v2.isMaybeObjectOrSymbol())
                 r = r.joinBool(false);
+        }
+        if (r.isMaybeAnyBool()) {
+            return r;
         }
         if (v1.isMaybeNull()) {
             if (v2.isMaybeUndef())
@@ -757,8 +917,11 @@ public class Operators {
                 r = r.joinBool(false);
             if (!v2.isNotStr())
                 r = r.joinBool(false);
-            if (v2.isMaybeObject())
+            if (v2.isMaybeObjectOrSymbol())
                 r = r.joinBool(false);
+        }
+        if (r.isMaybeAnyBool()) {
+            return r;
         }
         if (!v1.isNotBool()) {
             if (v2.isMaybeUndef())
@@ -777,8 +940,11 @@ public class Operators {
                 r = r.joinBool(false);
             if (!v2.isNotStr())
                 r = r.joinBool(false);
-            if (v2.isMaybeObject())
+            if (v2.isMaybeObjectOrSymbol())
                 r = r.joinBool(false);
+        }
+        if (r.isMaybeAnyBool()) {
+            return r;
         }
         if (!v1.isNotNum()) {
             if (v2.isMaybeUndef())
@@ -791,8 +957,11 @@ public class Operators {
                 r = abstractNumberEquality(r, v1, v2);
             if (!v2.isNotStr())
                 r = r.joinBool(false);
-            if (v2.isMaybeObject())
+            if (v2.isMaybeObjectOrSymbol())
                 r = r.joinBool(false);
+        }
+        if (r.isMaybeAnyBool()) {
+            return r;
         }
         if (!v1.isNotStr()) {
             if (v2.isMaybeUndef())
@@ -804,19 +973,15 @@ public class Operators {
             if (!v2.isNotNum())
                 r = r.joinBool(false);
             if (!v2.isNotStr()) {
-                if (v1.isMaybeFuzzyStr() || v2.isMaybeFuzzyStr())
-                    return Value.makeAnyBool();
-                else {
-                    String s1 = v1.getStr();
-                    String s2 = v2.getStr();
-                    if (s1 != null && s2 != null)
-                        r = r.joinBool(s1.equals(s2));
-                }
+                r = r.join(stringEqualityComparison(v1, v2));
             }
-            if (v2.isMaybeObject())
+            if (v2.isMaybeObjectOrSymbol())
                 r = r.joinBool(false);
         }
-        if (v1.isMaybeObject()) {
+        if (r.isMaybeAnyBool()) {
+            return r;
+        }
+        if (v1.isMaybeObjectOrSymbol()) {
             if (v2.isMaybeUndef())
                 r = r.joinBool(false);
             if (v2.isMaybeNull())
@@ -827,10 +992,31 @@ public class Operators {
                 r = r.joinBool(false);
             if (!v2.isNotStr())
                 r = r.joinBool(false);
-            if (v2.isMaybeObject())
-                r = eqObject(r, v1.getObjectLabels(), v2.getObjectLabels());
+            if (v2.isMaybeObjectOrSymbol())
+                r = eqObjectOrSymbol(r, v1.getObjectLabels(), v2.getObjectLabels());
         }
         return r;
+    }
+
+    private static Value stringEqualityComparison(Str v1, Str v2) {
+        if (!v1.isMaybeFuzzyStr() && !v2.isMaybeFuzzyStr()) {
+            return Value.makeBool(v1.getStr().equals(v2.getStr()));
+        }
+        if (doesSingleStringAndAbstractStringDisagree(v1, v2) || doesSingleStringAndAbstractStringDisagree(v2, v1)) {
+            return Value.makeBool(false);
+        }
+        if (doesStrUIntAndStrIdentifierDisagree(v1, v2) || doesStrUIntAndStrIdentifierDisagree(v2, v1)) {
+            return Value.makeBool(false);
+        }
+        return Value.makeAnyBool();
+    }
+
+    private static boolean doesSingleStringAndAbstractStringDisagree(Str v1, Str v2) {
+        return v1.isMaybeSingleStr() && !v2.isMaybeStr(v1.getStr());
+    }
+
+    private static boolean doesStrUIntAndStrIdentifierDisagree(Str v1, Str v2) {
+        return v1.isMaybeStrUInt() && !v1.isMaybeAnyStr() && v2.isStrIdentifier();
     }
 
     /**
@@ -858,7 +1044,8 @@ public class Operators {
             }
             return Value.makeNum(r);
         } else // TODO: Improve precision: NaN | 0 gives AnyNumUInt (testMicro186).
-            return Value.makeAnyNumUInt();
+            return Value.makeAnyNumNotNaNInf();
+
     }
 
     /**

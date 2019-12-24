@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -79,6 +79,6 @@ public class NextPropertyNode extends Node {
     @Override
     public void check(BasicBlock b) {
         if (propertylist_reg == NO_VALUE)
-            throw new AnalysisException("Invalid propertylist register: " + toString());
+            throw new AnalysisException("Invalid propertylist register: " + this);
     }
 }

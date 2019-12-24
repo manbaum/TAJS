@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,12 +18,9 @@ package dk.brics.tajs.analysis.nativeobjects;
 
 import dk.brics.tajs.analysis.Conversion;
 import dk.brics.tajs.analysis.Exceptions;
+import dk.brics.tajs.analysis.FunctionCalls;
 import dk.brics.tajs.analysis.FunctionCalls.CallInfo;
-import dk.brics.tajs.analysis.InitialStateBuilder;
-import dk.brics.tajs.analysis.NativeFunctions;
 import dk.brics.tajs.analysis.Solver;
-import dk.brics.tajs.analysis.nativeobjects.concrete.ConcreteString;
-import dk.brics.tajs.analysis.nativeobjects.concrete.Gamma;
 import dk.brics.tajs.analysis.nativeobjects.concrete.TAJSConcreteSemantics;
 import dk.brics.tajs.lattice.ObjectLabel;
 import dk.brics.tajs.lattice.ObjectLabel.Kind;
@@ -31,6 +28,14 @@ import dk.brics.tajs.lattice.State;
 import dk.brics.tajs.lattice.UnknownValueResolver;
 import dk.brics.tajs.lattice.Value;
 import dk.brics.tajs.solver.Message.Severity;
+
+import java.util.List;
+import java.util.Set;
+
+import static dk.brics.tajs.util.Collections.newList;
+import static dk.brics.tajs.util.Collections.newSet;
+import static dk.brics.tajs.util.Collections.singleton;
+import static dk.brics.tajs.util.Collections.singletonList;
 
 /**
  * 15.7 native Number functions.
@@ -44,41 +49,46 @@ public class JSNumber {
      * Evaluates the given native function.
      */
     public static Value evaluate(ECMAScriptObjects nativeobject, CallInfo call, Solver.SolverInterface c) {
-        if (nativeobject != ECMAScriptObjects.NUMBER)
-            if (NativeFunctions.throwTypeErrorIfConstructor(call, c))
-                return Value.makeNone();
-
         State state = c.getState();
         switch (nativeobject) {
 
             case NUMBER: {
-                NativeFunctions.expectParameters(nativeobject, call, c, 0, 1);
                 Value v;
                 if (call.isUnknownNumberOfArgs())
-                    v = Conversion.toNumber(NativeFunctions.readParameter(call, state, 0), c).joinNum(+0.0d);
+                    v = Conversion.toNumber(FunctionCalls.readParameter(call, state, 0), c).joinNum(+0.0d);
                 else if (call.getNumberOfArgs() >= 1)
-                    v = Conversion.toNumber(NativeFunctions.readParameter(call, state, 0), c);
+                    v = Conversion.toNumber(FunctionCalls.readParameter(call, state, 0), c);
                 else
                     v = Value.makeNum(+0.0d);
                 if (call.isConstructorCall()) { // 15.7.2
-                    ObjectLabel objlabel = new ObjectLabel(call.getSourceNode(), Kind.NUMBER);
-                    state.newObject(objlabel);
-                    state.writeInternalValue(objlabel, v);
-                    state.writeInternalPrototype(objlabel, Value.makeObject(InitialStateBuilder.NUMBER_PROTOTYPE));
-                    return Value.makeObject(objlabel);
+                    return Conversion.toObject(call.getSourceNode(), v, false, false, c);
                 } else // 15.7.1
                     return v;
+            }
+
+            case NUMBER_ISFINITE: {
+                Value n = FunctionCalls.readParameter(call, state, 0);
+                Value result = Value.makeNone();
+
+                if (n.isMaybeOtherThanNum()) {
+                    result = result.joinBool(false);
+                }
+                Value num = n.restrictToNum();
+                if (!num.isNone()) {
+                    if (num.isMaybeNaN() || num.isMaybeInf()) {
+                        result = result.joinBool(false);
+                    }
+                    if (num.isMaybeAnyNum() || num.isMaybeNumUInt() || num.isMaybeSingleNum() || num.isMaybeNumOther()) {
+                        result = result.joinBool(true);
+                    }
+                }
+                return result;
             }
 
             case NUMBER_TOFIXED: // 15.7.4.5
             case NUMBER_TOEXPONENTIAL: // 15.7.4.6
             case NUMBER_TOPRECISION: { // 15.7.4.7
-
-                NativeFunctions.expectParameters(nativeobject, call, c, 0, 1);
-                if (NativeFunctions.throwTypeErrorIfWrongKindOfThis(nativeobject, call, state, c, Kind.NUMBER))
-                    return Value.makeNone();
-
-                Value f = NativeFunctions.readParameter(call, state, 0);
+                Value f = FunctionCalls.readParameter(call, state, 0);
                 if (f.isMaybeUndef()) {
                     f = Conversion.toInteger(f.restrictToNotUndef(), c);
                     if (nativeobject == ECMAScriptObjects.NUMBER_TOFIXED || nativeobject == ECMAScriptObjects.NUMBER_TOEXPONENTIAL) {
@@ -103,50 +113,76 @@ public class JSNumber {
                     maybe_rangeerror = true;
                 }
                 if (maybe_rangeerror || definitely_rangeerror) {
-                    Exceptions.throwRangeError(c);
+                    Exceptions.throwRangeError(c, maybe_rangeerror);
                     c.getMonitoring().addMessage(call.getSourceNode(), Severity.HIGH, "RangeError in Number function");
                 }
                 if (definitely_rangeerror)
                     return Value.makeNone();
 
-                if (nativeobject == ECMAScriptObjects.NUMBER_TOFIXED && Gamma.isConcreteNumber(base, c) && Gamma.isConcreteNumber(f, c)) {
-                    boolean fIsZero = Double.valueOf(Gamma.toConcreteNumber(f, c).getNumber()).equals(0.0);
-                    double concreteBaseNumber = Gamma.toConcreteNumber(base, c).getNumber();
-                    boolean baseIsHalfy = Double.valueOf(Math.abs(concreteBaseNumber)).equals(0.5);
-                    boolean triggersConcreteSemanticsBug = baseIsHalfy && fIsZero;
-                    // The Nashorn engine for Concrete semantics has a bug, where it returns 0 on:
-                    // > 0.5.toFixed()
-                    // > -0.5.toFixed()
-                    // it should return 1 and -1 respectively...
-                    if (triggersConcreteSemanticsBug) {
-                        return Value.makeStr(concreteBaseNumber > 0 ? "1" : "-1");
-                    }
-                }
-                return TAJSConcreteSemantics.convertTAJSCall(base, nativeobject.toString(), 1, ConcreteString.class, state, call, c, Value.makeAnyStr());
+                return TAJSConcreteSemantics.convertTAJSCall(base, nativeobject.toString(), 1, call, c, Value::makeAnyStr);
             }
 
             case NUMBER_TOLOCALESTRING: // 15.7.4.3
             case NUMBER_TOSTRING: { // 15.7.4.2
-                NativeFunctions.expectParameters(nativeobject, call, c, 0, 1);
-                if (NativeFunctions.throwTypeErrorIfWrongKindOfThis(nativeobject, call, state, c, Kind.NUMBER))
-                    return Value.makeNone();
-                Value val = state.readInternalValue(state.readThisObjects());
-                if (!call.isUnknownNumberOfArgs() && call.getNumberOfArgs() == 0)
-                    return Conversion.toString(val, c);
-                else
+                Value radix = FunctionCalls.readParameter(call, c.getState(), 0);
+                Value v = evaluateToString(state.readThis(), radix, c);
+                if (nativeobject == ECMAScriptObjects.NUMBER_TOLOCALESTRING && !c.getAnalysis().getUnsoundness().mayAssumeFixedLocale(call.getSourceNode())) {
                     return Value.makeAnyStr();
-                // TODO: assuming that toLocaleString methods behave as toString (also other objects) - OK?
+                }
+                return v;
             }
 
             case NUMBER_VALUEOF: { // 15.7.4.4
-                NativeFunctions.expectParameters(nativeobject, call, c, 0, 0);
-                if (NativeFunctions.throwTypeErrorIfWrongKindOfThis(nativeobject, call, state, c, Kind.NUMBER))
-                    return Value.makeNone();
-                return state.readInternalValue(state.readThisObjects());
+                Set<ObjectLabel> numberObjects = newSet(state.readThisObjects());
+                numberObjects.removeIf(l -> l.getKind() != Kind.NUMBER);  // exceptions handled by NativeFunctionSignatureChecker
+                return state.readInternalValue(numberObjects);
+            }
+
+            case NUMBER_ISSAFEINTEGER:
+            case NUMBER_ISINTEGER:
+            case NUMBER_ISNAN: {
+                return Value.makeAnyBool();
             }
 
             default:
                 return null;
         }
+    }
+
+    public static Value evaluateToString(Value thisval, Value radix, Solver.SolverInterface c) {
+        List<Value> numvals = newList();
+        boolean is_maybe_typeerror = thisval.isMaybePrimitive();
+        Value numval = thisval.restrictToStr();
+        if (!numval.isNotNum()) {
+            numvals.add(numval);
+        }
+        for (ObjectLabel thisObj : thisval.getObjectLabels()) {
+            if (thisObj.getKind() != Kind.NUMBER) {
+                is_maybe_typeerror = true;
+            }
+            Value v = c.getState().readInternalValue(singleton(thisObj));
+            v = UnknownValueResolver.getRealValue(v, c.getState());
+            numvals.add(v);
+
+        }
+        if (is_maybe_typeerror) {
+            Exceptions.throwTypeError(c);
+        }
+        radix = UnknownValueResolver.getRealValue(radix, c.getState());
+        if (radix.isMaybeUndef()) {
+            radix = radix.restrictToNotUndef().join(Value.makeNum(10));
+        }
+        radix = Conversion.toInteger(radix, c);
+        List<Value> strs = newList();
+        for (Value v : numvals) {
+            Value str;
+            if (radix.getNum() == null || radix.getNum() != 10) {
+                str = TAJSConcreteSemantics.convertTAJSCallExplicit(v, "Number.prototype.toString", singletonList(radix), c, Value::makeAnyStr);
+            } else {
+                str = Conversion.toString(v, c);
+            }
+            strs.add(str);
+        }
+        return Value.join(strs);
     }
 }

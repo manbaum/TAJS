@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2015 Aarhus University
+ * Copyright 2009-2019 Aarhus University
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,12 +17,14 @@
 package dk.brics.tajs.analysis.nativeobjects;
 
 import dk.brics.tajs.analysis.Conversion;
+import dk.brics.tajs.analysis.FunctionCalls;
 import dk.brics.tajs.analysis.FunctionCalls.CallInfo;
 import dk.brics.tajs.analysis.InitialStateBuilder;
-import dk.brics.tajs.analysis.NativeFunctions;
+import dk.brics.tajs.analysis.PropVarOperations;
 import dk.brics.tajs.analysis.Solver;
 import dk.brics.tajs.lattice.ObjectLabel;
 import dk.brics.tajs.lattice.ObjectLabel.Kind;
+import dk.brics.tajs.lattice.Renamings;
 import dk.brics.tajs.lattice.State;
 import dk.brics.tajs.lattice.Value;
 
@@ -38,10 +40,6 @@ public class JSError {
      * Evaluates the given native function.
      */
     public static Value evaluate(ECMAScriptObjects nativeobject, CallInfo call, Solver.SolverInterface c) {
-        if (nativeobject == ECMAScriptObjects.ERROR_TOSTRING)
-            if (NativeFunctions.throwTypeErrorIfConstructor(call, c))
-                return Value.makeNone();
-
         switch (nativeobject) {
 
             case ERROR: { // 15.11.1 / 15.11.2 (function calls act like constructors here, also below)
@@ -73,8 +71,7 @@ public class JSError {
             }
 
             case ERROR_TOSTRING: { // 15.11.4.4
-                NativeFunctions.expectParameters(nativeobject, call, c, 0, 0);
-                return Value.makeAnyStr();
+                return evaluateToString();
             }
 
             default:
@@ -87,13 +84,20 @@ public class JSError {
      */
     private static Value createErrorObject(ObjectLabel proto, ECMAScriptObjects nativeobject, CallInfo call, Solver.SolverInterface c) {
         State state = c.getState();
-        NativeFunctions.expectParameters(nativeobject, call, c, 0, 1);
-        ObjectLabel obj = new ObjectLabel(call.getSourceNode(), Kind.ERROR);
+        PropVarOperations pv = c.getAnalysis().getPropVarOperations();
+        ObjectLabel obj = ObjectLabel.make(call.getSourceNode(), Kind.ERROR);
         state.newObject(obj);
+        pv.writeProperty(obj, "stack", Value.makeAnyStr());
         state.writeInternalPrototype(obj, Value.makeObject(proto));
-        Value message = NativeFunctions.readParameter(call, state, 0);
+        Value message = FunctionCalls.readParameter(call, state, 0).rename(new Renamings(obj));
         if (message.isMaybeOtherThanUndef())
             c.getAnalysis().getPropVarOperations().writeProperty(obj, "message", Conversion.toString(message.restrictToNotUndef(), c).removeAttributes());
         return Value.makeObject(obj);
+    }
+
+    public static Value evaluateToString() {
+        // 15.11.4.4 Error.prototype.toString ( )
+        // Returns an implementation defined string.
+        return Value.makeAnyStr();
     }
 }

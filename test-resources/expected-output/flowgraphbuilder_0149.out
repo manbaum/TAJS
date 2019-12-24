@@ -1,0 +1,58 @@
+fg2: <main> function()
+  block 0: [entry]
+    node 0: constant[undefined,v1] (test-resources/src/flowgraphbuilder/flowgraph_builder0149b.js)
+    node 1: function-decl[function f(),-] (test-resources/src/flowgraphbuilder/flowgraph_builder0149b.js:1:1)
+    ->[block 1]
+  block 1:
+    node 2: constant["tajs-host-env:string-replace-model.js",v2] (host-environment-sources-loader)
+    node 3: constant[true,v3] (host-environment-sources-loader)
+    ->[block 2]
+  block 2:
+    node 4: call[TAJS_load,v2,v3,v4] (host-environment-sources-loader)
+    ->[block 3]
+  block 3:
+    node 5: call[-,v4,-] (host-environment-sources-loader)
+    ->[block 4]
+  block 4:
+    node 6: constant["tajs-host-env:error-captureStackTrace-model.js",v5] (host-environment-sources-loader)
+    node 7: constant[true,v6] (host-environment-sources-loader)
+    ->[block 5]
+  block 5:
+    node 8: call[TAJS_load,v5,v6,v7] (host-environment-sources-loader)
+    ->[block 6]
+  block 6:
+    node 9: call[-,v7,-] (host-environment-sources-loader)
+    ->[block 7]
+  block 7:
+    node 10: read-variable['f',v12,v11] (test-resources/src/flowgraphbuilder/flowgraph_builder0149a.js:1:16)
+    ->[block 8]
+  block 8:
+    node 11: call[v11,v12,v10] (test-resources/src/flowgraphbuilder/flowgraph_builder0149a.js:1:16)
+    ->[block 9]
+  block 9:
+    node 12: call[TAJS_dumpValue,v10,-] (test-resources/src/flowgraphbuilder/flowgraph_builder0149a.js:1:1)
+    ->[block 10]
+  block 10: [exit-ordinary]
+    node 13: return[v1] (test-resources/src/flowgraphbuilder/flowgraph_builder0149b.js)
+    ->[]
+  block 11: [exit-exceptional]
+    node 14: exceptional-return (test-resources/src/flowgraphbuilder/flowgraph_builder0149b.js)
+    ->[]
+function f()
+  block 12: [entry]
+    node 15: constant[undefined,v1] (test-resources/src/flowgraphbuilder/flowgraph_builder0149b.js:1:1)
+    ->[block 13]
+  block 13:
+    node 16: constant[3.0,v1] (test-resources/src/flowgraphbuilder/flowgraph_builder0149b.js:1:23)
+    ->[block 14]
+  block 14: [exit-ordinary]
+    node 17: return[v1] (test-resources/src/flowgraphbuilder/flowgraph_builder0149b.js:1:1)
+    ->[]
+  block 15: [exit-exceptional]
+    node 18: exceptional-return (test-resources/src/flowgraphbuilder/flowgraph_builder0149b.js:1:1)
+    ->[]
+
+test-resources/src/flowgraphbuilder/flowgraph_builder0149b.js: [definite] Exceptional program exit is unreachable
+test-resources/src/flowgraphbuilder/flowgraph_builder0149a.js:1:1: [info] Abstract value: 3.0
+Could not create value log file: main file is known to be unsupported (limitation of the jalangilogger project)
+Log of soundness facts is not available for test-resources/src/flowgraphbuilder/flowgraph_builder0149b.js, skipping soundness checking

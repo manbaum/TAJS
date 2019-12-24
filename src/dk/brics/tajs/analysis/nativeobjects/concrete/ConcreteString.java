@@ -1,4 +1,22 @@
+/*
+ * Copyright 2009-2019 Aarhus University
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package dk.brics.tajs.analysis.nativeobjects.concrete;
+
+import java.util.Objects;
 
 public class ConcreteString implements PrimitiveConcreteValue {
 
@@ -9,7 +27,12 @@ public class ConcreteString implements PrimitiveConcreteValue {
     }
 
     private String escapeDoubleQuotesAndNewLines(String string) {
-        return string.replace("\"", "\\\"").replaceAll("(\\r|\\n|\\r\\n|\u2028|\u2029)+", "\\\\n");
+        String v1 = string.replace("\"", "\\\"");
+        String v2 = v1.replace("\u2028", "\n"); // need to normalize for Nashorn
+        String v3 = v2.replace("\u2029", "\n"); // need to normalize for Nashorn
+        String v4 = v3.replace("\n", "\\n");
+        String v5 = v4.replace("\r", "\\r");
+        return v5;
     }
 
     private String escapeBackslashes(String string) {
@@ -32,5 +55,20 @@ public class ConcreteString implements PrimitiveConcreteValue {
 
     public String getString() {
         return string;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        ConcreteString that = (ConcreteString) o;
+
+        return Objects.equals(string, that.string);
+    }
+
+    @Override
+    public int hashCode() {
+        return string != null ? string.hashCode() : 0;
     }
 }
